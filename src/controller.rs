@@ -102,6 +102,7 @@ pub struct Controller {
 
     set_sync_lpf: qt_method!(fn(&self, lpf: f64)),
     set_imu_lpf: qt_method!(fn(&self, lpf: f64)),
+    set_imu_lpf2: qt_method!(fn(&self, lpf: f64)),
     set_imu_median_filter: qt_method!(fn(&self, size: i32)),
     set_imu_rotation: qt_method!(fn(&self, pitch_deg: f64, roll_deg: f64, yaw_deg: f64)),
     set_acc_rotation: qt_method!(fn(&self, pitch_deg: f64, roll_deg: f64, yaw_deg: f64)),
@@ -1461,6 +1462,7 @@ impl Controller {
     wrap_simple_method!(remove_offset, timestamp_us: i64; recompute; update_offset_model);
 
     wrap_simple_method!(set_imu_lpf, v: f64; recompute; chart_data_changed);
+    wrap_simple_method!(set_imu_lpf2, v: f64; recompute; chart_data_changed);
     wrap_simple_method!(set_imu_median_filter, size: i32; recompute; chart_data_changed);
     wrap_simple_method!(set_imu_rotation, pitch_deg: f64, roll_deg: f64, yaw_deg: f64; recompute; chart_data_changed);
     wrap_simple_method!(set_acc_rotation, pitch_deg: f64, roll_deg: f64, yaw_deg: f64; recompute; chart_data_changed);

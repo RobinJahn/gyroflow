@@ -964,6 +964,9 @@ impl StabilizationManager {
     pub fn set_imu_lpf(&self, lpf: f64) {
         self.gyro.write().imu_transforms.imu_lpf = lpf;
     }
+    pub fn set_imu_lpf2(&self, lpf: f64) {
+        self.gyro.write().imu_transforms.imu_lpf2 = lpf;
+    }
     pub fn set_imu_median_filter(&self, size: i32) {
         self.gyro.write().imu_transforms.imu_mf = size;
     }
@@ -1220,6 +1223,7 @@ impl StabilizationManager {
             "gyro_source": {
                 "filepath":           gyro.file_url,
                 "lpf":                gyro.imu_transforms.imu_lpf,
+                "lpf2":               gyro.imu_transforms.imu_lpf2,
                 "mf":                 gyro.imu_transforms.imu_mf,
                 "rotation":           gyro.imu_transforms.imu_rotation_angles,
                 "acc_rotation":       gyro.imu_transforms.acc_rotation_angles,
@@ -1493,6 +1497,7 @@ impl StabilizationManager {
                 }
 
                 if let Some(v) = obj.get("lpf").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf = v; }
+                if let Some(v) = obj.get("lpf2").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf2 = v; }
                 if let Some(v) = obj.get("mf").and_then(|x| x.as_i64()) { gyro.imu_transforms.imu_mf = v as _; }
                 if let Some(v) = obj.get("integration_method").and_then(|x| x.as_u64()) { gyro.integration_method = v as usize; }
                 if let Some(v) = obj.get("imu_orientation").and_then(|x| x.as_str()) { gyro.imu_transforms.imu_orientation = Some(v.to_string()); }
