@@ -502,7 +502,7 @@ MenuItem {
             id: maxZoomSlider;
             value: 130;
             defaultValue: 130;
-            from: 110;
+            from: 1;
             to: 300;
             unit: "%";
             precision: 0;
