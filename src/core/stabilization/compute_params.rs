@@ -153,6 +153,8 @@ impl std::fmt::Debug for ComputeParams {
          .field("gyro.acc_rotation", &gyro.imu_transforms.acc_rotation_angles)
          .field("gyro.duration_ms", &gyro.duration_ms)
          .field("gyro.imu_lpf", &gyro.imu_transforms.imu_lpf)
+         .field("gyro.imu_lpf2", &gyro.imu_transforms.imu_lpf2)
+         .field("gyro.imu_lpf_blend", &gyro.imu_transforms.imu_lpf_blend)
          .field("gyro.imu_mf", &gyro.imu_transforms.imu_mf)
          .field("gyro.gyro_bias", &gyro.imu_transforms.gyro_bias)
          .field("gyro.integration_method", &gyro.integration_method)

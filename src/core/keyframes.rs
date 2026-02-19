@@ -44,6 +44,7 @@ define_keyframes! {
     LockHorizonPitch,            "#e86176", "Horizon lock pitch correction",    |v| format!("{:.1}°", v),
     LensCorrectionStrength,      "#e8ae61", "Lens correction strength",         |v| format!("{:.0}%", v * 100.0),
     LightRefractionCoeff,        "#CD7F19", "Light refraction coefficient",     |v| format!("{:.3}",  v),
+    ImuLpfBlend,                 "#3aa7ff", "IMU low pass filter blend",        |v| format!("{:.0}%", v * 100.0),
 
     SmoothingParamTimeConstant,  "#94ea8e", "Max smoothness",                   |v| format!("{:.2}", v),
     SmoothingParamTimeConstant2, "#89df82", "Max smoothness at high velocity",  |v| format!("{:.2}", v),

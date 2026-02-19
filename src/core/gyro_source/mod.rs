@@ -25,7 +25,7 @@ use crate::stabilization_params::ReadoutDirection;
 
 use super::imu_integration::*;
 use super::smoothing::SmoothingAlgorithm;
-use crate::StabilizationParams;
+use crate::{ keyframes::KeyframeManager, KeyframeType, StabilizationParams };
 
 const DEG2RAD: f64 = std::f64::consts::PI / 180.0;
 
@@ -87,24 +87,31 @@ impl GyroSource {
         self.file_metadata.read().has_motion()
     }
 
-    pub fn set_use_gravity_vectors(&mut self, v: bool) {
+    pub fn set_use_gravity_vectors(&mut self, v: bool, keyframes: Option<&KeyframeManager>) {
         if self.use_gravity_vectors != v {
             self.use_gravity_vectors = v;
-            self.integrate();
+            self.integrate(keyframes);
         }
         self.use_gravity_vectors = v;
     }
 
-    pub fn set_horizon_lock_integration_method(&mut self, v: i32) {
+    pub fn set_horizon_lock_integration_method(&mut self, v: i32, keyframes: Option<&KeyframeManager>) {
         if self.horizon_lock_integration_method != v {
             self.horizon_lock_integration_method = v;
-            self.integrate();
+            self.integrate(keyframes);
         }
         self.horizon_lock_integration_method = v;
     }
 
     pub fn init_from_params(&mut self, stabilization_params: &StabilizationParams) {
         self.duration_ms = stabilization_params.get_scaled_duration_ms();
+    }
+
+    fn lpf_blend_at_gyro_timestamp(keyframes: Option<&KeyframeManager>, timestamp_ms: f64, default_blend: f64) -> f64 {
+        keyframes
+            .and_then(|k| k.value_at_gyro_timestamp(&KeyframeType::ImuLpfBlend, timestamp_ms))
+            .unwrap_or(default_blend)
+            .clamp(0.0, 1.0)
     }
 
     pub fn parse_telemetry_file<T: Read + Seek, P: AsRef<std::path::Path>, F: Fn(f64)>(stream: &mut T, filesize: usize, path: P, options: &FileLoadOptions, size: (usize, usize), fps: f64, progress_cb: F, cancel_flag: Arc<AtomicBool>) -> Result<FileMetadata, crate::GyroflowCoreError> {
@@ -521,6 +528,8 @@ impl GyroSource {
         self.imu_transforms.imu_rotation = None;
         self.imu_transforms.acc_rotation = None;
         self.imu_transforms.imu_lpf = 0.0;
+        self.imu_transforms.imu_lpf2 = 0.0;
+        self.imu_transforms.imu_lpf_blend = 0.0;
         self.imu_transforms.imu_mf = 0;
         self.file_metadata = Default::default();
         self.clear_offsets();
@@ -571,12 +580,12 @@ impl GyroSource {
                     }
                 }
             }
-            self.apply_transforms();
+            self.apply_transforms(None);
         } else if self.quaternions.is_empty() {
-            self.integrate();
+            self.integrate(None);
         }
     }
-    pub fn integrate(&mut self) {
+    pub fn integrate(&mut self, keyframes: Option<&KeyframeManager>) {
         let file_metadata = self.file_metadata.read();
         match self.integration_method {
             0 => {
@@ -586,10 +595,46 @@ impl GyroSource {
                 } else {
                     file_metadata.quaternions.clone()
                 };
-                if self.imu_transforms.imu_lpf > 0.0 && !self.quaternions.is_empty() && self.duration_ms > 0.0 {
+                let lpf1_active = self.imu_transforms.imu_lpf > 0.0;
+                let lpf2_active = self.imu_transforms.imu_lpf2 > 0.0;
+                let active_filters = lpf1_active as u8 + lpf2_active as u8;
+                if active_filters > 0 && !self.quaternions.is_empty() && self.duration_ms > 0.0 {
                     let sample_rate = self.quaternions.len() as f64 / (self.duration_ms / 1000.0);
-                    if let Err(e) = super::filtering::Lowpass::filter_quats_forward_backward(self.imu_transforms.imu_lpf, sample_rate, &mut self.quaternions) {
-                        log::error!("Filter error {:?}", e);
+                    if active_filters == 1 {
+                        let freq = if lpf1_active { self.imu_transforms.imu_lpf } else { self.imu_transforms.imu_lpf2 };
+                        if let Err(e) = super::filtering::Lowpass::filter_quats_forward_backward(freq, sample_rate, &mut self.quaternions) {
+                            log::error!("Filter error {:?}", e);
+                        }
+                    } else {
+                        let mut lpf1_quats = self.quaternions.clone();
+                        let mut lpf2_quats = self.quaternions.clone();
+
+                        if let Err(e) = super::filtering::Lowpass::filter_quats_forward_backward(self.imu_transforms.imu_lpf, sample_rate, &mut lpf1_quats) {
+                            log::error!("Filter error {:?}", e);
+                        }
+                        if let Err(e) = super::filtering::Lowpass::filter_quats_forward_backward(self.imu_transforms.imu_lpf2, sample_rate, &mut lpf2_quats) {
+                            log::error!("Filter error {:?}", e);
+                        }
+
+                        let blend_is_keyframed = keyframes.is_some_and(|k| k.is_keyframed(&KeyframeType::ImuLpfBlend));
+                        let blend = self.imu_transforms.imu_lpf_blend.clamp(0.0, 1.0);
+
+                        if !blend_is_keyframed && blend <= 0.0 {
+                            self.quaternions = lpf1_quats;
+                        } else if !blend_is_keyframed && blend >= 1.0 {
+                            self.quaternions = lpf2_quats;
+                        } else {
+                            self.quaternions = lpf1_quats;
+                            for ((ts, out), (_, q2)) in self.quaternions.iter_mut().zip(lpf2_quats.iter()) {
+                                let blend = Self::lpf_blend_at_gyro_timestamp(keyframes, *ts as f64 / 1000.0, blend);
+                                if blend >= 1.0 {
+                                    *out = *q2;
+                                } else if blend > 0.0 {
+                                    let q1 = *out;
+                                    *out = q1.slerp(q2, blend);
+                                }
+                            }
+                        }
                     }
                 }
                 if let Some(rot) = self.imu_transforms.imu_rotation {
@@ -613,7 +658,6 @@ impl GyroSource {
         let mut smoothed_quaternions = self.quaternions.clone();
 
         for (ts, q) in smoothed_quaternions.iter_mut() {
-            use crate::KeyframeType;
             let timestamp_ms = *ts as f64 / 1000.0;
             let additional_rotation_x = compute_params.keyframes.value_at_gyro_timestamp(&KeyframeType::AdditionalRotationX, timestamp_ms).unwrap_or(compute_params.additional_rotation.0) * DEG2RAD;
             let additional_rotation_y = compute_params.keyframes.value_at_gyro_timestamp(&KeyframeType::AdditionalRotationY, timestamp_ms).unwrap_or(compute_params.additional_rotation.1) * DEG2RAD;
@@ -775,7 +819,7 @@ impl GyroSource {
         self.offsets_adjusted = self.offsets.iter().map(|(k, v)| (*k + (*v * 1000.0).round() as i64, *v)).collect::<BTreeMap<i64, f64>>();
     }
 
-    pub fn apply_transforms(&mut self) {
+    pub fn apply_transforms(&mut self, keyframes: Option<&KeyframeManager>) {
         let file_metadata = self.file_metadata.read();
 
         if self.imu_transforms.has_any() {
@@ -791,10 +835,64 @@ impl GyroSource {
                     self.imu_transforms.transform(m, false);
                 }
             }
-            if self.imu_transforms.imu_lpf > 0.0 && !file_metadata.raw_imu.is_empty() && self.duration_ms > 0.0 {
+            let lpf1_active = self.imu_transforms.imu_lpf > 0.0;
+            let lpf2_active = self.imu_transforms.imu_lpf2 > 0.0;
+            let active_filters = lpf1_active as u8 + lpf2_active as u8;
+            if active_filters > 0 && !file_metadata.raw_imu.is_empty() && self.duration_ms > 0.0 {
                 let sample_rate = file_metadata.raw_imu.len() as f64 / (self.duration_ms / 1000.0);
-                if let Err(e) = super::filtering::Lowpass::filter_gyro_forward_backward(self.imu_transforms.imu_lpf, sample_rate, &mut self.raw_imu) {
-                    log::error!("Filter error {:?}", e);
+
+                if active_filters == 1 {
+                    let freq = if lpf1_active { self.imu_transforms.imu_lpf } else { self.imu_transforms.imu_lpf2 };
+                    if let Err(e) = super::filtering::Lowpass::filter_gyro_forward_backward(freq, sample_rate, &mut self.raw_imu) {
+                        log::error!("Filter error {:?}", e);
+                    }
+                } else {
+                    let mut lpf1_raw = self.raw_imu.clone();
+                    let mut lpf2_raw = self.raw_imu.clone();
+
+                    if let Err(e) = super::filtering::Lowpass::filter_gyro_forward_backward(self.imu_transforms.imu_lpf, sample_rate, &mut lpf1_raw) {
+                        log::error!("Filter error {:?}", e);
+                    }
+                    if let Err(e) = super::filtering::Lowpass::filter_gyro_forward_backward(self.imu_transforms.imu_lpf2, sample_rate, &mut lpf2_raw) {
+                        log::error!("Filter error {:?}", e);
+                    }
+
+                    let blend_is_keyframed = keyframes.is_some_and(|k| k.is_keyframed(&KeyframeType::ImuLpfBlend));
+                    let blend = self.imu_transforms.imu_lpf_blend.clamp(0.0, 1.0);
+
+                    if !blend_is_keyframed && blend <= 0.0 {
+                        self.raw_imu = lpf1_raw;
+                    } else if !blend_is_keyframed && blend >= 1.0 {
+                        self.raw_imu = lpf2_raw;
+                    } else {
+                        self.raw_imu = lpf1_raw;
+                        for (out, src2) in self.raw_imu.iter_mut().zip(lpf2_raw.iter()) {
+                            let blend = Self::lpf_blend_at_gyro_timestamp(keyframes, out.timestamp_ms, blend);
+                            if blend >= 1.0 {
+                                out.gyro = src2.gyro;
+                                out.accl = src2.accl;
+                            } else if blend > 0.0 {
+                                if let Some(g2) = src2.gyro {
+                                    if let Some(g1) = out.gyro.as_mut() {
+                                        g1[0] += (g2[0] - g1[0]) * blend;
+                                        g1[1] += (g2[1] - g1[1]) * blend;
+                                        g1[2] += (g2[2] - g1[2]) * blend;
+                                    } else {
+                                        out.gyro = Some(g2);
+                                    }
+                                }
+                                if let Some(a2) = src2.accl {
+                                    if let Some(a1) = out.accl.as_mut() {
+                                        a1[0] += (a2[0] - a1[0]) * blend;
+                                        a1[1] += (a2[1] - a1[1]) * blend;
+                                        a1[2] += (a2[2] - a1[2]) * blend;
+                                    } else {
+                                        out.accl = Some(a2);
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
             if self.imu_transforms.imu_mf > 0 && !file_metadata.raw_imu.is_empty() && self.duration_ms > 0.0 {
@@ -807,7 +905,7 @@ impl GyroSource {
 
         drop(file_metadata);
 
-        self.integrate();
+        self.integrate(keyframes);
     }
 
     fn quat_at_timestamp(&self, quats: &TimeQuat, mut timestamp_ms: f64) -> Quat64 {
@@ -878,6 +976,8 @@ impl GyroSource {
         hasher.write(self.file_url.as_bytes());
         hasher.write_u64(self.duration_ms.to_bits());
         hasher.write_u64(self.imu_transforms.imu_lpf.to_bits());
+        hasher.write_u64(self.imu_transforms.imu_lpf2.to_bits());
+        hasher.write_u64(self.imu_transforms.imu_lpf_blend.to_bits());
         hasher.write_i32(self.imu_transforms.imu_mf);
         hasher.write_usize(self.raw_imu.len());
         hasher.write_usize(file_metadata.raw_imu.len());

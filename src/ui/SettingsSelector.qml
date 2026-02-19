@@ -25,7 +25,9 @@ Modal {
         },
         "Lens profile": ["calibration_data", "light_refraction_coefficient"],
         "Motion data|gyro_source": {
-            "Low pass filter":    ["lpf"],
+            "Low pass filter 1":  ["lpf"],
+            "Low pass filter 2":  ["lpf2"],
+            "Low pass filter blend": ["lpf_blend"],
             "Median filter":      ["mf"],
             "Rotation":           ["rotation", "acc_rotation"],
             "Gyro bias":          ["gyro_bias"],
@@ -98,7 +100,9 @@ Modal {
             QT_TR_NOOP("Frame rate");
         QT_TR_NOOP("Lens profile");
         QT_TR_NOOP("Motion data");
-            QT_TR_NOOP("Low pass filter");
+            QT_TR_NOOP("Low pass filter 1");
+            QT_TR_NOOP("Low pass filter 2");
+            QT_TR_NOOP("Low pass filter blend");
             QT_TR_NOOP("Median filter");
             QT_TR_NOOP("Rotation");
             QT_TR_NOOP("Gyro bias");

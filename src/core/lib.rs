@@ -964,6 +964,12 @@ impl StabilizationManager {
     pub fn set_imu_lpf(&self, lpf: f64) {
         self.gyro.write().imu_transforms.imu_lpf = lpf;
     }
+    pub fn set_imu_lpf2(&self, lpf: f64) {
+        self.gyro.write().imu_transforms.imu_lpf2 = lpf;
+    }
+    pub fn set_imu_lpf_blend(&self, blend: f64) {
+        self.gyro.write().imu_transforms.imu_lpf_blend = blend.clamp(0.0, 1.0);
+    }
     pub fn set_imu_median_filter(&self, size: i32) {
         self.gyro.write().imu_transforms.imu_mf = size;
     }
@@ -980,7 +986,8 @@ impl StabilizationManager {
         self.gyro.write().imu_transforms.gyro_bias = Some([bx, by, bz]);
     }
     pub fn recompute_gyro(&self) {
-        self.gyro.write().apply_transforms();
+        let keyframes = self.keyframes.read().clone();
+        self.gyro.write().apply_transforms(Some(&keyframes));
         self.invalidate_smoothing();
     }
     pub fn set_sync_lpf(&self, lpf: f64) {
@@ -1029,11 +1036,13 @@ impl StabilizationManager {
         self.invalidate_smoothing();
     }
     pub fn set_use_gravity_vectors(&self, v: bool) {
-        self.gyro.write().set_use_gravity_vectors(v);
+        let keyframes = self.keyframes.read().clone();
+        self.gyro.write().set_use_gravity_vectors(v, Some(&keyframes));
         self.invalidate_smoothing();
     }
     pub fn set_horizon_lock_integration_method(&self, v: i32) {
-        self.gyro.write().set_horizon_lock_integration_method(v);
+        let keyframes = self.keyframes.read().clone();
+        self.gyro.write().set_horizon_lock_integration_method(v, Some(&keyframes));
         self.invalidate_smoothing();
     }
     pub fn get_smoothing_max_angles(&self) -> (f64, f64, f64) {
@@ -1220,6 +1229,8 @@ impl StabilizationManager {
             "gyro_source": {
                 "filepath":           gyro.file_url,
                 "lpf":                gyro.imu_transforms.imu_lpf,
+                "lpf2":               gyro.imu_transforms.imu_lpf2,
+                "lpf_blend":          gyro.imu_transforms.imu_lpf_blend,
                 "mf":                 gyro.imu_transforms.imu_mf,
                 "rotation":           gyro.imu_transforms.imu_rotation_angles,
                 "acc_rotation":       gyro.imu_transforms.acc_rotation_angles,
@@ -1493,6 +1504,8 @@ impl StabilizationManager {
                 }
 
                 if let Some(v) = obj.get("lpf").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf = v; }
+                if let Some(v) = obj.get("lpf2").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf2 = v; }
+                if let Some(v) = obj.get("lpf_blend").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf_blend = v.clamp(0.0, 1.0); }
                 if let Some(v) = obj.get("mf").and_then(|x| x.as_i64()) { gyro.imu_transforms.imu_mf = v as _; }
                 if let Some(v) = obj.get("integration_method").and_then(|x| x.as_u64()) { gyro.integration_method = v as usize; }
                 if let Some(v) = obj.get("imu_orientation").and_then(|x| x.as_str()) { gyro.imu_transforms.imu_orientation = Some(v.to_string()); }
@@ -1585,10 +1598,10 @@ impl StabilizationManager {
                     }
                 }
                 if let Some(v) = obj.get("use_gravity_vectors").and_then(|x| x.as_bool()) {
-                    self.gyro.write().set_use_gravity_vectors(v);
+                    self.gyro.write().set_use_gravity_vectors(v, None);
                 }
                 if let Some(v) = obj.get("horizon_lock_integration_method").and_then(|x| x.as_i64()) {
-                    self.gyro.write().set_horizon_lock_integration_method(v as i32);
+                    self.gyro.write().set_horizon_lock_integration_method(v as i32, None);
                 }
 
                 obj.remove("adaptive_zoom_fovs");
@@ -1887,6 +1900,7 @@ impl StabilizationManager {
             KeyframeType::SmoothingParamPitch |
             KeyframeType::SmoothingParamRoll |
             KeyframeType::SmoothingParamYaw => self.invalidate_smoothing(),
+            KeyframeType::ImuLpfBlend => self.recompute_gyro(),
             _ => { }
         }
     }

@@ -62,9 +62,23 @@ MenuItem {
                 const index = +gyro.integration_method;
                 integrator.currentIndex = integrator.hasQuaternions? index : index - 1;
             }
-            if (+gyro.lpf > 0) {
+            if (gyro.hasOwnProperty("lpf")) {
                 lpf.value = +gyro.lpf;
                 lpfcb.checked = lpf.value > 0;
+            } else {
+                lpfcb.checked = false;
+            }
+            if (gyro.hasOwnProperty("lpf2")) {
+                lpf2.value = +gyro.lpf2;
+                lpf2cb.checked = lpf2.value > 0;
+            } else {
+                lpf2.value = 50;
+                lpf2cb.checked = false;
+            }
+            if (gyro.hasOwnProperty("lpf_blend")) {
+                lpfBlend.value = +gyro.lpf_blend;
+            } else {
+                lpfBlend.value = 0;
             }
             if (typeof gyro.sample_index === "number") {
                 currentLog.currentIndex = gyro.sample_index + 1;
@@ -119,6 +133,8 @@ MenuItem {
             }
 
             controller.set_imu_lpf(lpfcb.checked? lpf.value : 0);
+            controller.set_imu_lpf2(lpf2cb.checked? lpf2.value : 0);
+            controller.set_imu_lpf_blend(lpfBlend.value);
             controller.set_imu_median_filter(mfcb.checked? mf.value : 0);
             controller.set_imu_rotation(rot.checked? p.value : 0, rot.checked? r.value : 0, rot.checked? y.value : 0);
             controller.set_acc_rotation(arot.checked? ap.value : 0, arot.checked? ar.value : 0, arot.checked? ay.value : 0);
@@ -244,7 +260,7 @@ MenuItem {
     }
     CheckBoxWithContent {
         id: lpfcb;
-        text: qsTr("Low pass filter");
+        text: qsTr("Low pass filter 1");
         onCheckedChanged: {
             controller.set_imu_lpf(checked? lpf.value : 0);
             Qt.callLater(controller.recompute_gyro);
@@ -260,6 +276,49 @@ MenuItem {
             tooltip: qsTr("Lower cutoff frequency means more filtering");
             onValueChanged: {
                 controller.set_imu_lpf(lpfcb.checked? value : 0);
+                Qt.callLater(controller.recompute_gyro);
+            }
+        }
+    }
+    CheckBoxWithContent {
+        id: lpf2cb;
+        text: qsTr("Low pass filter 2");
+        onCheckedChanged: {
+            controller.set_imu_lpf2(checked? lpf2.value : 0);
+            Qt.callLater(controller.recompute_gyro);
+        }
+
+        NumberField {
+            id: lpf2;
+            unit: qsTr("Hz");
+            precision: 2;
+            value: 50;
+            from: 0;
+            width: parent.width;
+            tooltip: qsTr("Lower cutoff frequency means more filtering");
+            onValueChanged: {
+                controller.set_imu_lpf2(lpf2cb.checked? value : 0);
+                Qt.callLater(controller.recompute_gyro);
+            }
+        }
+    }
+    Label {
+        text: qsTr("LPF blend");
+        position: Label.LeftPosition;
+        SliderWithField {
+            id: lpfBlend;
+            from: 0;
+            to: 100;
+            value: 0;
+            defaultValue: 0;
+            unit: "%";
+            precision: 0;
+            slider.stepSize: 1;
+            width: parent.width;
+            keyframe: "ImuLpfBlend";
+            scaler: 100.0;
+            onValueChanged: {
+                controller.set_imu_lpf_blend(value);
                 Qt.callLater(controller.recompute_gyro);
             }
         }
