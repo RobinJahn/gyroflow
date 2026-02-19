@@ -53,6 +53,8 @@ define_keyframes! {
     SmoothingParamYaw,           "#88c451", "Yaw smoothness",                   |v| format!("{:.2}", v),
 
     VideoSpeed,                  "#f6e926", "Video speed",                      |v| format!("{:.1}%", v * 100.0),
+
+    ImuLpfBlend,                 "#b8a9c9", "LPF blend",                       |v| format!("{:.0}%", v * 100.0),
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, ::serde::Serialize, ::serde::Deserialize)]

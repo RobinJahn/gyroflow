@@ -926,7 +926,7 @@ impl Controller {
 
                 let mut gyro = stab.gyro.write();
                 gyro.integration_method = index;
-                gyro.integrate();
+                gyro.integrate(None);
             }
             stab.invalidate_smoothing();
             finished(());

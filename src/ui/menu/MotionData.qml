@@ -291,6 +291,23 @@ MenuItem {
             }
         }
     }
+    Label {
+        text: qsTr("LPF blend");
+        visible: lpfcb.checked && lpf2cb.checked;
+        tooltip: qsTr("Blend between the two low pass filters. Keyframe this to change the filter over time.\n0% = LPF 1 only, 100% = LPF 2 only");
+        SliderWithField {
+            id: lpfBlend;
+            value: 0;
+            defaultValue: 0;
+            from: 0;
+            to: 100;
+            unit: "%";
+            precision: 0;
+            width: parent.width;
+            keyframe: "ImuLpfBlend";
+            scaler: 100.0;
+        }
+    }
     CheckBoxWithContent {
         id: mfcb;
         text: qsTr("Median filter");

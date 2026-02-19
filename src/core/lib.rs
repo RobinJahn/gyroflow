@@ -983,7 +983,32 @@ impl StabilizationManager {
         self.gyro.write().imu_transforms.gyro_bias = Some([bx, by, bz]);
     }
     pub fn recompute_gyro(&self) {
-        self.gyro.write().apply_transforms();
+        let blend_values = {
+            let gyro = self.gyro.read();
+            let both_lpfs_enabled = gyro.imu_transforms.imu_lpf > 0.0
+                && gyro.imu_transforms.imu_lpf2 > 0.0;
+            if !both_lpfs_enabled {
+                None
+            } else {
+                let keyframes = self.keyframes.read();
+                let has_keyframes = keyframes.is_keyframed(&KeyframeType::ImuLpfBlend);
+                let file_metadata = gyro.file_metadata.read();
+                if file_metadata.raw_imu.is_empty() {
+                    None
+                } else {
+                    Some(file_metadata.raw_imu.iter().map(|sample| {
+                        if has_keyframes {
+                            keyframes.value_at_gyro_timestamp(
+                                &KeyframeType::ImuLpfBlend, sample.timestamp_ms
+                            ).unwrap_or(0.0).clamp(0.0, 1.0)
+                        } else {
+                            0.0 // Default: 100% LPF1
+                        }
+                    }).collect::<Vec<f64>>())
+                }
+            }
+        };
+        self.gyro.write().apply_transforms(blend_values.as_deref());
         self.invalidate_smoothing();
     }
     pub fn set_sync_lpf(&self, lpf: f64) {
@@ -1892,6 +1917,7 @@ impl StabilizationManager {
             KeyframeType::SmoothingParamPitch |
             KeyframeType::SmoothingParamRoll |
             KeyframeType::SmoothingParamYaw => self.invalidate_smoothing(),
+            KeyframeType::ImuLpfBlend => self.recompute_gyro(),
             _ => { }
         }
     }

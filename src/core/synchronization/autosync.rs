@@ -203,7 +203,7 @@ impl AutosyncProcess {
             let mut gyro = compute_params.gyro.write();
 
             gyro.file_metadata.set_raw_imu(self.estimator.estimated_gyro.read().values().cloned().collect::<Vec<_>>());
-            gyro.apply_transforms();
+            gyro.apply_transforms(None);
 
             let timestamps_fract = [0.5];
             let time_per_syncpoint = 500.0;
