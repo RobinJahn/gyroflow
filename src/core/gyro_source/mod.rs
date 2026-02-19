@@ -603,12 +603,22 @@ impl GyroSource {
                     if let Err(e) = super::filtering::Lowpass::filter_quats_forward_backward(self.imu_transforms.imu_lpf2, sample_rate, &mut filtered_b) {
                         log::error!("Filter error {:?}", e);
                     }
-                    for (i, ((_ts, q), (qa, qb))) in self.quaternions.iter_mut()
+                    let last_idx = blend_values.len().saturating_sub(1);
+                    for ((ts, q), (qa, qb)) in self.quaternions.iter_mut()
                         .zip(filtered_a.values().zip(filtered_b.values()))
-                        .enumerate()
                     {
-                        let t = blend_values.get(i).copied().unwrap_or(0.0).clamp(0.0, 1.0);
-                        *q = qa.slerp(qb, t);
+                        // Use timestamp-based lookup: blend_values is indexed by raw_imu sample,
+                        // but native quaternions may be at a different sample rate.
+                        let frac = (*ts as f64 / 1000.0 / self.duration_ms).clamp(0.0, 1.0);
+                        let idx = ((frac * last_idx as f64).round() as usize).min(last_idx);
+                        let t = blend_values[idx].clamp(0.0, 1.0);
+                        if t <= 0.0 {
+                            *q = *qa;
+                        } else if t >= 1.0 {
+                            *q = *qb;
+                        } else {
+                            *q = qa.slerp(qb, t);
+                        }
                     }
                 } else {
                     if self.imu_transforms.imu_lpf > 0.0 && !self.quaternions.is_empty() && self.duration_ms > 0.0 {
@@ -617,12 +627,7 @@ impl GyroSource {
                             log::error!("Filter error {:?}", e);
                         }
                     }
-                    if self.imu_transforms.imu_lpf2 > 0.0 && !self.quaternions.is_empty() && self.duration_ms > 0.0 {
-                        let sample_rate = self.quaternions.len() as f64 / (self.duration_ms / 1000.0);
-                        if let Err(e) = super::filtering::Lowpass::filter_quats_forward_backward(self.imu_transforms.imu_lpf2, sample_rate, &mut self.quaternions) {
-                            log::error!("Filter error {:?}", e);
-                        }
-                    }
+                    // LPF2 only participates via the blend keyframe path, not in cascade
                 }
                 if let Some(rot) = self.imu_transforms.imu_rotation {
                     for (_ts, q) in &mut self.quaternions {
@@ -841,18 +846,26 @@ impl GyroSource {
                 }
                 for (i, sample) in self.raw_imu.iter_mut().enumerate() {
                     let t = blend_values.get(i).copied().unwrap_or(0.0).clamp(0.0, 1.0);
-                    if let (Some(ga), Some(gb)) = (filtered_a[i].gyro, filtered_b[i].gyro) {
-                        if let Some(g) = sample.gyro.as_mut() {
-                            g[0] = ga[0] * (1.0 - t) + gb[0] * t;
-                            g[1] = ga[1] * (1.0 - t) + gb[1] * t;
-                            g[2] = ga[2] * (1.0 - t) + gb[2] * t;
+                    if t <= 0.0 {
+                        if let Some(ga) = filtered_a[i].gyro { if let Some(g) = sample.gyro.as_mut() { *g = ga; } }
+                        if let Some(aa) = filtered_a[i].accl { if let Some(a) = sample.accl.as_mut() { *a = aa; } }
+                    } else if t >= 1.0 {
+                        if let Some(gb) = filtered_b[i].gyro { if let Some(g) = sample.gyro.as_mut() { *g = gb; } }
+                        if let Some(ab) = filtered_b[i].accl { if let Some(a) = sample.accl.as_mut() { *a = ab; } }
+                    } else {
+                        if let (Some(ga), Some(gb)) = (filtered_a[i].gyro, filtered_b[i].gyro) {
+                            if let Some(g) = sample.gyro.as_mut() {
+                                g[0] = ga[0] * (1.0 - t) + gb[0] * t;
+                                g[1] = ga[1] * (1.0 - t) + gb[1] * t;
+                                g[2] = ga[2] * (1.0 - t) + gb[2] * t;
+                            }
                         }
-                    }
-                    if let (Some(aa), Some(ab)) = (filtered_a[i].accl, filtered_b[i].accl) {
-                        if let Some(a) = sample.accl.as_mut() {
-                            a[0] = aa[0] * (1.0 - t) + ab[0] * t;
-                            a[1] = aa[1] * (1.0 - t) + ab[1] * t;
-                            a[2] = aa[2] * (1.0 - t) + ab[2] * t;
+                        if let (Some(aa), Some(ab)) = (filtered_a[i].accl, filtered_b[i].accl) {
+                            if let Some(a) = sample.accl.as_mut() {
+                                a[0] = aa[0] * (1.0 - t) + ab[0] * t;
+                                a[1] = aa[1] * (1.0 - t) + ab[1] * t;
+                                a[2] = aa[2] * (1.0 - t) + ab[2] * t;
+                            }
                         }
                     }
                 }
@@ -863,12 +876,7 @@ impl GyroSource {
                         log::error!("Filter error {:?}", e);
                     }
                 }
-                if self.imu_transforms.imu_lpf2 > 0.0 && !file_metadata.raw_imu.is_empty() && self.duration_ms > 0.0 {
-                    let sample_rate = file_metadata.raw_imu.len() as f64 / (self.duration_ms / 1000.0);
-                    if let Err(e) = super::filtering::Lowpass::filter_gyro_forward_backward(self.imu_transforms.imu_lpf2, sample_rate, &mut self.raw_imu) {
-                        log::error!("Filter error {:?}", e);
-                    }
-                }
+                // LPF2 only participates via the blend keyframe path, not in cascade
             }
             if self.imu_transforms.imu_mf > 0 && !file_metadata.raw_imu.is_empty() && self.duration_ms > 0.0 {
                 let sample_rate = file_metadata.raw_imu.len() as f64 / (self.duration_ms / 1000.0);

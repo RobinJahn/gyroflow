@@ -984,26 +984,19 @@ impl StabilizationManager {
     }
     pub fn recompute_gyro(&self) {
         let blend_values = {
-            let gyro = self.gyro.read();
-            let both_lpfs_enabled = gyro.imu_transforms.imu_lpf > 0.0
-                && gyro.imu_transforms.imu_lpf2 > 0.0;
-            if !both_lpfs_enabled {
+            let keyframes = self.keyframes.read();
+            if !keyframes.is_keyframed(&KeyframeType::ImuLpfBlend) {
                 None
             } else {
-                let keyframes = self.keyframes.read();
-                let has_keyframes = keyframes.is_keyframed(&KeyframeType::ImuLpfBlend);
+                let gyro = self.gyro.read();
                 let file_metadata = gyro.file_metadata.read();
                 if file_metadata.raw_imu.is_empty() {
                     None
                 } else {
                     Some(file_metadata.raw_imu.iter().map(|sample| {
-                        if has_keyframes {
-                            keyframes.value_at_gyro_timestamp(
-                                &KeyframeType::ImuLpfBlend, sample.timestamp_ms
-                            ).unwrap_or(0.0).clamp(0.0, 1.0)
-                        } else {
-                            0.0 // Default: 100% LPF1
-                        }
+                        keyframes.value_at_gyro_timestamp(
+                            &KeyframeType::ImuLpfBlend, sample.timestamp_ms
+                        ).unwrap_or(0.0).clamp(0.0, 1.0)
                     }).collect::<Vec<f64>>())
                 }
             }
