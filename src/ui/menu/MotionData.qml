@@ -68,12 +68,22 @@ MenuItem {
             } else {
                 lpfcb.checked = false;
             }
+            if (gyro.hasOwnProperty("lpf_strength")) {
+                lpfStrength.value = +gyro.lpf_strength;
+            } else {
+                lpfStrength.value = 1;
+            }
             if (gyro.hasOwnProperty("lpf2")) {
                 lpf2.value = +gyro.lpf2;
                 lpf2cb.checked = lpf2.value > 0;
             } else {
                 lpf2.value = 50;
                 lpf2cb.checked = false;
+            }
+            if (gyro.hasOwnProperty("lpf2_strength")) {
+                lpf2Strength.value = +gyro.lpf2_strength;
+            } else {
+                lpf2Strength.value = 1;
             }
             if (gyro.hasOwnProperty("lpf_blend")) {
                 lpfBlend.value = +gyro.lpf_blend;
@@ -91,6 +101,16 @@ MenuItem {
                 notchQ.value = +gyro.notch_q;
             } else {
                 notchQ.value = 0.71;
+            }
+            if (gyro.hasOwnProperty("notch_strength")) {
+                notchStrength.value = +gyro.notch_strength;
+            } else {
+                notchStrength.value = 1;
+            }
+            if (gyro.hasOwnProperty("mf_strength")) {
+                mfStrength.value = (+gyro.mf_strength) * 100.0;
+            } else {
+                mfStrength.value = 100;
             }
             if (typeof gyro.sample_index === "number") {
                 currentLog.currentIndex = gyro.sample_index + 1;
@@ -145,11 +165,15 @@ MenuItem {
             }
 
             controller.set_imu_lpf(lpfcb.checked? lpf.value : 0);
+            controller.set_imu_lpf_strength(lpfStrength.value);
             controller.set_imu_lpf2(lpf2cb.checked? lpf2.value : 0);
+            controller.set_imu_lpf2_strength(lpf2Strength.value);
             controller.set_imu_lpf_blend(lpfBlend.value);
             controller.set_imu_notch_q(notchQ.value);
+            controller.set_imu_notch_strength(notchStrength.value);
             controller.set_imu_notch_freq(notchcb.checked? notchFreq.value : 0);
             controller.set_imu_median_filter(mfcb.checked? mf.value : 0);
+            controller.set_imu_median_filter_strength(mfStrength.value / 100.0);
             controller.set_imu_rotation(rot.checked? p.value : 0, rot.checked? r.value : 0, rot.checked? y.value : 0);
             controller.set_acc_rotation(arot.checked? ap.value : 0, arot.checked? ar.value : 0, arot.checked? ay.value : 0);
             Qt.callLater(controller.recompute_gyro);
@@ -276,6 +300,7 @@ MenuItem {
         id: lpfcb;
         text: qsTr("Low pass filter 1");
         onCheckedChanged: {
+            controller.set_imu_lpf_strength(lpfStrength.value);
             controller.set_imu_lpf(checked? lpf.value : 0);
             Qt.callLater(controller.recompute_gyro);
         }
@@ -289,8 +314,28 @@ MenuItem {
             width: parent.width;
             tooltip: qsTr("Lower cutoff frequency means more filtering");
             onValueChanged: {
+                controller.set_imu_lpf_strength(lpfStrength.value);
                 controller.set_imu_lpf(lpfcb.checked? value : 0);
                 Qt.callLater(controller.recompute_gyro);
+            }
+        }
+        Label {
+            text: qsTr("Strength");
+            position: Label.LeftPosition;
+            NumberField {
+                id: lpfStrength;
+                unit: "x";
+                precision: 0;
+                value: 1;
+                from: 0;
+                to: 12;
+                width: parent.width;
+                tooltip: qsTr("Number of filter passes; higher values mean stronger attenuation");
+                onValueChanged: {
+                    controller.set_imu_lpf_strength(value);
+                    controller.set_imu_lpf(lpfcb.checked? lpf.value : 0);
+                    Qt.callLater(controller.recompute_gyro);
+                }
             }
         }
     }
@@ -298,6 +343,7 @@ MenuItem {
         id: lpf2cb;
         text: qsTr("Low pass filter 2");
         onCheckedChanged: {
+            controller.set_imu_lpf2_strength(lpf2Strength.value);
             controller.set_imu_lpf2(checked? lpf2.value : 0);
             Qt.callLater(controller.recompute_gyro);
         }
@@ -311,8 +357,28 @@ MenuItem {
             width: parent.width;
             tooltip: qsTr("Lower cutoff frequency means more filtering");
             onValueChanged: {
+                controller.set_imu_lpf2_strength(lpf2Strength.value);
                 controller.set_imu_lpf2(lpf2cb.checked? value : 0);
                 Qt.callLater(controller.recompute_gyro);
+            }
+        }
+        Label {
+            text: qsTr("Strength");
+            position: Label.LeftPosition;
+            NumberField {
+                id: lpf2Strength;
+                unit: "x";
+                precision: 0;
+                value: 1;
+                from: 0;
+                to: 12;
+                width: parent.width;
+                tooltip: qsTr("Number of filter passes; higher values mean stronger attenuation");
+                onValueChanged: {
+                    controller.set_imu_lpf2_strength(value);
+                    controller.set_imu_lpf2(lpf2cb.checked? lpf2.value : 0);
+                    Qt.callLater(controller.recompute_gyro);
+                }
             }
         }
     }
@@ -342,6 +408,7 @@ MenuItem {
         text: qsTr("Notch filter");
         onCheckedChanged: {
             controller.set_imu_notch_q(notchQ.value);
+            controller.set_imu_notch_strength(notchStrength.value);
             controller.set_imu_notch_freq(checked? notchFreq.value : 0);
             Qt.callLater(controller.recompute_gyro);
         }
@@ -359,6 +426,7 @@ MenuItem {
                 tooltip: qsTr("Center frequency to attenuate");
                 onValueChanged: {
                     controller.set_imu_notch_q(notchQ.value);
+                    controller.set_imu_notch_strength(notchStrength.value);
                     controller.set_imu_notch_freq(notchcb.checked? value : 0);
                     Qt.callLater(controller.recompute_gyro);
                 }
@@ -376,6 +444,26 @@ MenuItem {
                 tooltip: qsTr("Higher values make the notch narrower");
                 onValueChanged: {
                     controller.set_imu_notch_q(value);
+                    controller.set_imu_notch_strength(notchStrength.value);
+                    controller.set_imu_notch_freq(notchcb.checked? notchFreq.value : 0);
+                    Qt.callLater(controller.recompute_gyro);
+                }
+            }
+        }
+        Label {
+            text: qsTr("Strength");
+            position: Label.LeftPosition;
+            NumberField {
+                id: notchStrength;
+                unit: "x";
+                precision: 0;
+                value: 1;
+                from: 0;
+                to: 12;
+                width: parent.width;
+                tooltip: qsTr("Number of filter passes; higher values mean stronger attenuation");
+                onValueChanged: {
+                    controller.set_imu_notch_strength(value);
                     controller.set_imu_notch_freq(notchcb.checked? notchFreq.value : 0);
                     Qt.callLater(controller.recompute_gyro);
                 }
@@ -386,6 +474,7 @@ MenuItem {
         id: mfcb;
         text: qsTr("Median filter");
         onCheckedChanged: {
+            controller.set_imu_median_filter_strength(mfStrength.value / 100.0);
             controller.set_imu_median_filter(checked? mf.value : 0);
             Qt.callLater(controller.recompute_gyro);
         }
@@ -398,8 +487,27 @@ MenuItem {
             from: 0;
             width: parent.width;
             onValueChanged: {
+                controller.set_imu_median_filter_strength(mfStrength.value / 100.0);
                 controller.set_imu_median_filter(mfcb.checked? value : 0);
                 Qt.callLater(controller.recompute_gyro);
+            }
+        }
+        Label {
+            text: qsTr("Strength");
+            position: Label.LeftPosition;
+            NumberField {
+                id: mfStrength;
+                unit: "%";
+                precision: 0;
+                value: 100;
+                from: 0;
+                to: 300;
+                width: parent.width;
+                onValueChanged: {
+                    controller.set_imu_median_filter_strength(value / 100.0);
+                    controller.set_imu_median_filter(mfcb.checked? mf.value : 0);
+                    Qt.callLater(controller.recompute_gyro);
+                }
             }
         }
     }

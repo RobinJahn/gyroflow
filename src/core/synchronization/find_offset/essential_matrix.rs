@@ -44,8 +44,8 @@ pub fn find_offsets<F: Fn(f64) + Sync>(estimator: &PoseEstimator, ranges: &[(i64
                 }
 
                 let sample_rate = raw_imu_len as f64 / (gyro.duration_ms / 1000.0);
-                let _ = Lowpass::filter_gyro_forward_backward(20.0, params.scaled_fps, &mut of_item);
-                let _ = Lowpass::filter_gyro_forward_backward(20.0, sample_rate, &mut gyro_item);
+                let _ = Lowpass::filter_gyro_forward_backward(20.0, params.scaled_fps, 1.0, &mut of_item);
+                let _ = Lowpass::filter_gyro_forward_backward(20.0, sample_rate, 1.0, &mut gyro_item);
 
                 let gyro_bintree: BTreeMap<usize, TimeIMU> = gyro_item.into_iter().map(|x| ((x.timestamp_ms * 1000.0) as usize, x)).collect();
 

@@ -531,11 +531,15 @@ impl GyroSource {
         self.imu_transforms.imu_rotation = None;
         self.imu_transforms.acc_rotation = None;
         self.imu_transforms.imu_lpf = 0.0;
+        self.imu_transforms.imu_lpf_strength = 1.0;
         self.imu_transforms.imu_lpf2 = 0.0;
+        self.imu_transforms.imu_lpf2_strength = 1.0;
         self.imu_transforms.imu_lpf_blend = 0.0;
         self.imu_transforms.imu_notch_freq = 0.0;
         self.imu_transforms.imu_notch_q = biquad::Q_BUTTERWORTH_F64;
+        self.imu_transforms.imu_notch_strength = 1.0;
         self.imu_transforms.imu_mf = 0;
+        self.imu_transforms.imu_mf_strength = 1.0;
         self.file_metadata = Default::default();
         self.clear_offsets();
     }
@@ -607,17 +611,18 @@ impl GyroSource {
                     let sample_rate = self.quaternions.len() as f64 / (self.duration_ms / 1000.0);
                     if active_filters == 1 {
                         let freq = if lpf1_active { self.imu_transforms.imu_lpf } else { self.imu_transforms.imu_lpf2 };
-                        if let Err(e) = super::filtering::Lowpass::filter_quats_forward_backward(freq, sample_rate, &mut self.quaternions) {
+                        let strength = if lpf1_active { self.imu_transforms.imu_lpf_strength } else { self.imu_transforms.imu_lpf2_strength };
+                        if let Err(e) = super::filtering::Lowpass::filter_quats_forward_backward(freq, sample_rate, strength, &mut self.quaternions) {
                             log::error!("Filter error {:?}", e);
                         }
                     } else {
                         let mut lpf1_quats = self.quaternions.clone();
                         let mut lpf2_quats = self.quaternions.clone();
 
-                        if let Err(e) = super::filtering::Lowpass::filter_quats_forward_backward(self.imu_transforms.imu_lpf, sample_rate, &mut lpf1_quats) {
+                        if let Err(e) = super::filtering::Lowpass::filter_quats_forward_backward(self.imu_transforms.imu_lpf, sample_rate, self.imu_transforms.imu_lpf_strength, &mut lpf1_quats) {
                             log::error!("Filter error {:?}", e);
                         }
-                        if let Err(e) = super::filtering::Lowpass::filter_quats_forward_backward(self.imu_transforms.imu_lpf2, sample_rate, &mut lpf2_quats) {
+                        if let Err(e) = super::filtering::Lowpass::filter_quats_forward_backward(self.imu_transforms.imu_lpf2, sample_rate, self.imu_transforms.imu_lpf2_strength, &mut lpf2_quats) {
                             log::error!("Filter error {:?}", e);
                         }
 
@@ -644,7 +649,7 @@ impl GyroSource {
                 }
                 if self.imu_transforms.imu_notch_freq > 0.0 && !self.quaternions.is_empty() && self.duration_ms > 0.0 {
                     let sample_rate = self.quaternions.len() as f64 / (self.duration_ms / 1000.0);
-                    if let Err(e) = super::filtering::Notch::filter_quats_forward_backward(self.imu_transforms.imu_notch_freq, Self::notch_q(self.imu_transforms.imu_notch_q), sample_rate, &mut self.quaternions) {
+                    if let Err(e) = super::filtering::Notch::filter_quats_forward_backward(self.imu_transforms.imu_notch_freq, Self::notch_q(self.imu_transforms.imu_notch_q), sample_rate, self.imu_transforms.imu_notch_strength, &mut self.quaternions) {
                         log::error!("Filter error {:?}", e);
                     }
                 }
@@ -854,17 +859,18 @@ impl GyroSource {
 
                 if active_filters == 1 {
                     let freq = if lpf1_active { self.imu_transforms.imu_lpf } else { self.imu_transforms.imu_lpf2 };
-                    if let Err(e) = super::filtering::Lowpass::filter_gyro_forward_backward(freq, sample_rate, &mut self.raw_imu) {
+                    let strength = if lpf1_active { self.imu_transforms.imu_lpf_strength } else { self.imu_transforms.imu_lpf2_strength };
+                    if let Err(e) = super::filtering::Lowpass::filter_gyro_forward_backward(freq, sample_rate, strength, &mut self.raw_imu) {
                         log::error!("Filter error {:?}", e);
                     }
                 } else {
                     let mut lpf1_raw = self.raw_imu.clone();
                     let mut lpf2_raw = self.raw_imu.clone();
 
-                    if let Err(e) = super::filtering::Lowpass::filter_gyro_forward_backward(self.imu_transforms.imu_lpf, sample_rate, &mut lpf1_raw) {
+                    if let Err(e) = super::filtering::Lowpass::filter_gyro_forward_backward(self.imu_transforms.imu_lpf, sample_rate, self.imu_transforms.imu_lpf_strength, &mut lpf1_raw) {
                         log::error!("Filter error {:?}", e);
                     }
-                    if let Err(e) = super::filtering::Lowpass::filter_gyro_forward_backward(self.imu_transforms.imu_lpf2, sample_rate, &mut lpf2_raw) {
+                    if let Err(e) = super::filtering::Lowpass::filter_gyro_forward_backward(self.imu_transforms.imu_lpf2, sample_rate, self.imu_transforms.imu_lpf2_strength, &mut lpf2_raw) {
                         log::error!("Filter error {:?}", e);
                     }
 
@@ -908,13 +914,13 @@ impl GyroSource {
             }
             if self.imu_transforms.imu_notch_freq > 0.0 && !file_metadata.raw_imu.is_empty() && self.duration_ms > 0.0 {
                 let sample_rate = file_metadata.raw_imu.len() as f64 / (self.duration_ms / 1000.0);
-                if let Err(e) = super::filtering::Notch::filter_gyro_forward_backward(self.imu_transforms.imu_notch_freq, Self::notch_q(self.imu_transforms.imu_notch_q), sample_rate, &mut self.raw_imu) {
+                if let Err(e) = super::filtering::Notch::filter_gyro_forward_backward(self.imu_transforms.imu_notch_freq, Self::notch_q(self.imu_transforms.imu_notch_q), sample_rate, self.imu_transforms.imu_notch_strength, &mut self.raw_imu) {
                     log::error!("Filter error {:?}", e);
                 }
             }
             if self.imu_transforms.imu_mf > 0 && !file_metadata.raw_imu.is_empty() && self.duration_ms > 0.0 {
                 let sample_rate = file_metadata.raw_imu.len() as f64 / (self.duration_ms / 1000.0);
-                super::filtering::Median::filter_gyro_forward_backward(self.imu_transforms.imu_mf, sample_rate, &mut self.raw_imu);
+                super::filtering::Median::filter_gyro_forward_backward(self.imu_transforms.imu_mf, sample_rate, self.imu_transforms.imu_mf_strength, &mut self.raw_imu);
             }
         } else {
             self.raw_imu.clear();
@@ -993,11 +999,15 @@ impl GyroSource {
         hasher.write(self.file_url.as_bytes());
         hasher.write_u64(self.duration_ms.to_bits());
         hasher.write_u64(self.imu_transforms.imu_lpf.to_bits());
+        hasher.write_u64(self.imu_transforms.imu_lpf_strength.to_bits());
         hasher.write_u64(self.imu_transforms.imu_lpf2.to_bits());
+        hasher.write_u64(self.imu_transforms.imu_lpf2_strength.to_bits());
         hasher.write_u64(self.imu_transforms.imu_lpf_blend.to_bits());
         hasher.write_u64(self.imu_transforms.imu_notch_freq.to_bits());
         hasher.write_u64(self.imu_transforms.imu_notch_q.to_bits());
+        hasher.write_u64(self.imu_transforms.imu_notch_strength.to_bits());
         hasher.write_i32(self.imu_transforms.imu_mf);
+        hasher.write_u64(self.imu_transforms.imu_mf_strength.to_bits());
         hasher.write_usize(self.raw_imu.len());
         hasher.write_usize(file_metadata.raw_imu.len());
         hasher.write_usize(self.quaternions.len());

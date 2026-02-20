@@ -4,7 +4,7 @@
 use nalgebra::*;
 use super::DEG2RAD;
 
-#[derive(Default, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct IMUTransforms {
     pub imu_orientation: Option<String>,
     pub imu_rotation_angles: Option<[f64; 3]>,
@@ -12,12 +12,38 @@ pub struct IMUTransforms {
     pub imu_rotation: Option<Rotation3<f64>>,
     pub acc_rotation: Option<Rotation3<f64>>,
     pub imu_lpf: f64,
+    pub imu_lpf_strength: f64,
     pub imu_lpf2: f64,
+    pub imu_lpf2_strength: f64,
     pub imu_lpf_blend: f64,
     pub imu_notch_freq: f64,
     pub imu_notch_q: f64,
+    pub imu_notch_strength: f64,
     pub imu_mf: i32,
+    pub imu_mf_strength: f64,
     pub gyro_bias: Option<[f64; 3]>,
+}
+impl Default for IMUTransforms {
+    fn default() -> Self {
+        Self {
+            imu_orientation: None,
+            imu_rotation_angles: None,
+            acc_rotation_angles: None,
+            imu_rotation: None,
+            acc_rotation: None,
+            imu_lpf: 0.0,
+            imu_lpf_strength: 1.0,
+            imu_lpf2: 0.0,
+            imu_lpf2_strength: 1.0,
+            imu_lpf_blend: 0.0,
+            imu_notch_freq: 0.0,
+            imu_notch_q: biquad::Q_BUTTERWORTH_F64,
+            imu_notch_strength: 1.0,
+            imu_mf: 0,
+            imu_mf_strength: 1.0,
+            gyro_bias: None,
+        }
+    }
 }
 impl IMUTransforms {
     pub fn transform(&self, v: &mut [f64; 3], is_acc: bool) {

@@ -964,8 +964,14 @@ impl StabilizationManager {
     pub fn set_imu_lpf(&self, lpf: f64) {
         self.gyro.write().imu_transforms.imu_lpf = lpf;
     }
+    pub fn set_imu_lpf_strength(&self, strength: f64) {
+        self.gyro.write().imu_transforms.imu_lpf_strength = strength.clamp(0.0, 12.0);
+    }
     pub fn set_imu_lpf2(&self, lpf: f64) {
         self.gyro.write().imu_transforms.imu_lpf2 = lpf;
+    }
+    pub fn set_imu_lpf2_strength(&self, strength: f64) {
+        self.gyro.write().imu_transforms.imu_lpf2_strength = strength.clamp(0.0, 12.0);
     }
     pub fn set_imu_lpf_blend(&self, blend: f64) {
         self.gyro.write().imu_transforms.imu_lpf_blend = blend.clamp(0.0, 1.0);
@@ -976,8 +982,14 @@ impl StabilizationManager {
     pub fn set_imu_notch_q(&self, q: f64) {
         self.gyro.write().imu_transforms.imu_notch_q = q;
     }
+    pub fn set_imu_notch_strength(&self, strength: f64) {
+        self.gyro.write().imu_transforms.imu_notch_strength = strength.clamp(0.0, 12.0);
+    }
     pub fn set_imu_median_filter(&self, size: i32) {
         self.gyro.write().imu_transforms.imu_mf = size;
+    }
+    pub fn set_imu_median_filter_strength(&self, strength: f64) {
+        self.gyro.write().imu_transforms.imu_mf_strength = strength.clamp(0.0, 3.0);
     }
     pub fn set_imu_rotation(&self, pitch_deg: f64, roll_deg: f64, yaw_deg: f64) {
         self.gyro.write().imu_transforms.set_imu_rotation(pitch_deg, roll_deg, yaw_deg);
@@ -1235,11 +1247,15 @@ impl StabilizationManager {
             "gyro_source": {
                 "filepath":           gyro.file_url,
                 "lpf":                gyro.imu_transforms.imu_lpf,
+                "lpf_strength":       gyro.imu_transforms.imu_lpf_strength,
                 "lpf2":               gyro.imu_transforms.imu_lpf2,
+                "lpf2_strength":      gyro.imu_transforms.imu_lpf2_strength,
                 "lpf_blend":          gyro.imu_transforms.imu_lpf_blend,
                 "notch_freq":         gyro.imu_transforms.imu_notch_freq,
                 "notch_q":            gyro.imu_transforms.imu_notch_q,
+                "notch_strength":     gyro.imu_transforms.imu_notch_strength,
                 "mf":                 gyro.imu_transforms.imu_mf,
+                "mf_strength":        gyro.imu_transforms.imu_mf_strength,
                 "rotation":           gyro.imu_transforms.imu_rotation_angles,
                 "acc_rotation":       gyro.imu_transforms.acc_rotation_angles,
                 "imu_orientation":    gyro.imu_transforms.imu_orientation,
@@ -1512,11 +1528,15 @@ impl StabilizationManager {
                 }
 
                 if let Some(v) = obj.get("lpf").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf = v; }
+                if let Some(v) = obj.get("lpf_strength").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf_strength = v.clamp(0.0, 12.0); }
                 if let Some(v) = obj.get("lpf2").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf2 = v; }
+                if let Some(v) = obj.get("lpf2_strength").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf2_strength = v.clamp(0.0, 12.0); }
                 if let Some(v) = obj.get("lpf_blend").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf_blend = v.clamp(0.0, 1.0); }
                 if let Some(v) = obj.get("notch_freq").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_notch_freq = v; }
                 if let Some(v) = obj.get("notch_q").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_notch_q = v; }
+                if let Some(v) = obj.get("notch_strength").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_notch_strength = v.clamp(0.0, 12.0); }
                 if let Some(v) = obj.get("mf").and_then(|x| x.as_i64()) { gyro.imu_transforms.imu_mf = v as _; }
+                if let Some(v) = obj.get("mf_strength").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_mf_strength = v.clamp(0.0, 3.0); }
                 if let Some(v) = obj.get("integration_method").and_then(|x| x.as_u64()) { gyro.integration_method = v as usize; }
                 if let Some(v) = obj.get("imu_orientation").and_then(|x| x.as_str()) { gyro.imu_transforms.imu_orientation = Some(v.to_string()); }
                 if let Some(v) = obj.get("rotation")     { let v: [f64; 3] = serde_json::from_value(v.clone()).unwrap_or_default(); gyro.imu_transforms.set_imu_rotation(v[0], v[1], v[2]); }

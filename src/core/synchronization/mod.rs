@@ -348,7 +348,7 @@ impl PoseEstimator {
 
         if lpf > 0.0 && fps > 0.0 {
             let mut vals = gyro.values().cloned().collect::<Vec<_>>();
-            if let Err(e) = crate::filtering::Lowpass::filter_gyro_forward_backward(lpf, fps, &mut vals) {
+            if let Err(e) = crate::filtering::Lowpass::filter_gyro_forward_backward(lpf, fps, 1.0, &mut vals) {
                 log::error!("Filter error {:?}", e);
             }
             for ((_k, v), vec) in gyro.iter_mut().zip(vals.into_iter()) {
