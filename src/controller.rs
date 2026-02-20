@@ -104,6 +104,8 @@ pub struct Controller {
     set_imu_lpf: qt_method!(fn(&self, lpf: f64)),
     set_imu_lpf2: qt_method!(fn(&self, lpf: f64)),
     set_imu_lpf_blend: qt_method!(fn(&self, blend: f64)),
+    set_imu_notch_freq: qt_method!(fn(&self, freq: f64)),
+    set_imu_notch_q: qt_method!(fn(&self, q: f64)),
     set_imu_median_filter: qt_method!(fn(&self, size: i32)),
     set_imu_rotation: qt_method!(fn(&self, pitch_deg: f64, roll_deg: f64, yaw_deg: f64)),
     set_acc_rotation: qt_method!(fn(&self, pitch_deg: f64, roll_deg: f64, yaw_deg: f64)),
@@ -1466,6 +1468,8 @@ impl Controller {
     wrap_simple_method!(set_imu_lpf, v: f64; recompute; chart_data_changed);
     wrap_simple_method!(set_imu_lpf2, v: f64; recompute; chart_data_changed);
     wrap_simple_method!(set_imu_lpf_blend, v: f64; recompute; chart_data_changed);
+    wrap_simple_method!(set_imu_notch_freq, v: f64; recompute; chart_data_changed);
+    wrap_simple_method!(set_imu_notch_q, v: f64; recompute; chart_data_changed);
     wrap_simple_method!(set_imu_median_filter, size: i32; recompute; chart_data_changed);
     wrap_simple_method!(set_imu_rotation, pitch_deg: f64, roll_deg: f64, yaw_deg: f64; recompute; chart_data_changed);
     wrap_simple_method!(set_acc_rotation, pitch_deg: f64, roll_deg: f64, yaw_deg: f64; recompute; chart_data_changed);

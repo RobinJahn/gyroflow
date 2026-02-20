@@ -155,6 +155,8 @@ impl std::fmt::Debug for ComputeParams {
          .field("gyro.imu_lpf", &gyro.imu_transforms.imu_lpf)
          .field("gyro.imu_lpf2", &gyro.imu_transforms.imu_lpf2)
          .field("gyro.imu_lpf_blend", &gyro.imu_transforms.imu_lpf_blend)
+         .field("gyro.imu_notch_freq", &gyro.imu_transforms.imu_notch_freq)
+         .field("gyro.imu_notch_q", &gyro.imu_transforms.imu_notch_q)
          .field("gyro.imu_mf", &gyro.imu_transforms.imu_mf)
          .field("gyro.gyro_bias", &gyro.imu_transforms.gyro_bias)
          .field("gyro.integration_method", &gyro.integration_method)

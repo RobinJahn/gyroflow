@@ -14,6 +14,8 @@ pub struct IMUTransforms {
     pub imu_lpf: f64,
     pub imu_lpf2: f64,
     pub imu_lpf_blend: f64,
+    pub imu_notch_freq: f64,
+    pub imu_notch_q: f64,
     pub imu_mf: i32,
     pub gyro_bias: Option<[f64; 3]>,
 }
@@ -43,6 +45,7 @@ impl IMUTransforms {
             || self.gyro_bias.is_some_and(|x| x[0].abs() > 0.0 || x[1].abs() > 0.0 || x[2].abs() > 0.0)
             || self.imu_lpf > 0.0
             || self.imu_lpf2 > 0.0
+            || self.imu_notch_freq > 0.0
             || self.imu_mf > 0
     }
 

@@ -970,6 +970,12 @@ impl StabilizationManager {
     pub fn set_imu_lpf_blend(&self, blend: f64) {
         self.gyro.write().imu_transforms.imu_lpf_blend = blend.clamp(0.0, 1.0);
     }
+    pub fn set_imu_notch_freq(&self, freq: f64) {
+        self.gyro.write().imu_transforms.imu_notch_freq = freq;
+    }
+    pub fn set_imu_notch_q(&self, q: f64) {
+        self.gyro.write().imu_transforms.imu_notch_q = q;
+    }
     pub fn set_imu_median_filter(&self, size: i32) {
         self.gyro.write().imu_transforms.imu_mf = size;
     }
@@ -1231,6 +1237,8 @@ impl StabilizationManager {
                 "lpf":                gyro.imu_transforms.imu_lpf,
                 "lpf2":               gyro.imu_transforms.imu_lpf2,
                 "lpf_blend":          gyro.imu_transforms.imu_lpf_blend,
+                "notch_freq":         gyro.imu_transforms.imu_notch_freq,
+                "notch_q":            gyro.imu_transforms.imu_notch_q,
                 "mf":                 gyro.imu_transforms.imu_mf,
                 "rotation":           gyro.imu_transforms.imu_rotation_angles,
                 "acc_rotation":       gyro.imu_transforms.acc_rotation_angles,
@@ -1506,6 +1514,8 @@ impl StabilizationManager {
                 if let Some(v) = obj.get("lpf").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf = v; }
                 if let Some(v) = obj.get("lpf2").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf2 = v; }
                 if let Some(v) = obj.get("lpf_blend").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf_blend = v.clamp(0.0, 1.0); }
+                if let Some(v) = obj.get("notch_freq").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_notch_freq = v; }
+                if let Some(v) = obj.get("notch_q").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_notch_q = v; }
                 if let Some(v) = obj.get("mf").and_then(|x| x.as_i64()) { gyro.imu_transforms.imu_mf = v as _; }
                 if let Some(v) = obj.get("integration_method").and_then(|x| x.as_u64()) { gyro.integration_method = v as usize; }
                 if let Some(v) = obj.get("imu_orientation").and_then(|x| x.as_str()) { gyro.imu_transforms.imu_orientation = Some(v.to_string()); }

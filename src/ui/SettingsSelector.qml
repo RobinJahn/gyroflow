@@ -28,6 +28,7 @@ Modal {
             "Low pass filter 1":  ["lpf"],
             "Low pass filter 2":  ["lpf2"],
             "Low pass filter blend": ["lpf_blend"],
+            "Notch filter":       ["notch_freq", "notch_q"],
             "Median filter":      ["mf"],
             "Rotation":           ["rotation", "acc_rotation"],
             "Gyro bias":          ["gyro_bias"],
@@ -103,6 +104,7 @@ Modal {
             QT_TR_NOOP("Low pass filter 1");
             QT_TR_NOOP("Low pass filter 2");
             QT_TR_NOOP("Low pass filter blend");
+            QT_TR_NOOP("Notch filter");
             QT_TR_NOOP("Median filter");
             QT_TR_NOOP("Rotation");
             QT_TR_NOOP("Gyro bias");

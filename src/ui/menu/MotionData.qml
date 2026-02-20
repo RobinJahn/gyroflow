@@ -80,6 +80,18 @@ MenuItem {
             } else {
                 lpfBlend.value = 0;
             }
+            if (gyro.hasOwnProperty("notch_freq")) {
+                notchFreq.value = +gyro.notch_freq;
+                notchcb.checked = notchFreq.value > 0;
+            } else {
+                notchFreq.value = 120;
+                notchcb.checked = false;
+            }
+            if (gyro.hasOwnProperty("notch_q")) {
+                notchQ.value = +gyro.notch_q;
+            } else {
+                notchQ.value = 0.71;
+            }
             if (typeof gyro.sample_index === "number") {
                 currentLog.currentIndex = gyro.sample_index + 1;
             }
@@ -135,6 +147,8 @@ MenuItem {
             controller.set_imu_lpf(lpfcb.checked? lpf.value : 0);
             controller.set_imu_lpf2(lpf2cb.checked? lpf2.value : 0);
             controller.set_imu_lpf_blend(lpfBlend.value);
+            controller.set_imu_notch_q(notchQ.value);
+            controller.set_imu_notch_freq(notchcb.checked? notchFreq.value : 0);
             controller.set_imu_median_filter(mfcb.checked? mf.value : 0);
             controller.set_imu_rotation(rot.checked? p.value : 0, rot.checked? r.value : 0, rot.checked? y.value : 0);
             controller.set_acc_rotation(arot.checked? ap.value : 0, arot.checked? ar.value : 0, arot.checked? ay.value : 0);
@@ -320,6 +334,51 @@ MenuItem {
             onValueChanged: {
                 controller.set_imu_lpf_blend(value);
                 Qt.callLater(controller.recompute_gyro);
+            }
+        }
+    }
+    CheckBoxWithContent {
+        id: notchcb;
+        text: qsTr("Notch filter");
+        onCheckedChanged: {
+            controller.set_imu_notch_q(notchQ.value);
+            controller.set_imu_notch_freq(checked? notchFreq.value : 0);
+            Qt.callLater(controller.recompute_gyro);
+        }
+
+        Label {
+            text: qsTr("Frequency");
+            position: Label.LeftPosition;
+            NumberField {
+                id: notchFreq;
+                unit: qsTr("Hz");
+                precision: 2;
+                value: 120;
+                from: 0;
+                width: parent.width;
+                tooltip: qsTr("Center frequency to attenuate");
+                onValueChanged: {
+                    controller.set_imu_notch_q(notchQ.value);
+                    controller.set_imu_notch_freq(notchcb.checked? value : 0);
+                    Qt.callLater(controller.recompute_gyro);
+                }
+            }
+        }
+        Label {
+            text: qsTr("Q");
+            position: Label.LeftPosition;
+            NumberField {
+                id: notchQ;
+                precision: 2;
+                value: 0.71;
+                from: 0.01;
+                width: parent.width;
+                tooltip: qsTr("Higher values make the notch narrower");
+                onValueChanged: {
+                    controller.set_imu_notch_q(value);
+                    controller.set_imu_notch_freq(notchcb.checked? notchFreq.value : 0);
+                    Qt.callLater(controller.recompute_gyro);
+                }
             }
         }
     }
