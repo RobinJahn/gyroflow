@@ -46,7 +46,18 @@ pub fn export_gyro_data(filename: &str, fields_json: &str, stab: &Arc<crate::Sta
     enum Format {
         Csv, Json, Usd, Jsx
     }
-    fn get(f: Option<[f64; 3]>, i: usize) -> f64 { f.map(|x| x[i]).unwrap_or_default() }
+    fn get(f: Option<[f64; 3]>, i: usize) -> f64 { f.map(|x| x[i]).unwrap_or(f64::NAN) }
+    fn derived_gyro_from_quats(prev: Option<(f64, crate::Quat64)>, cur_ts_ms: f64, cur_q: crate::Quat64) -> Option<[f64; 3]> {
+        let (prev_ts_ms, prev_q) = prev?;
+        let dt = (cur_ts_ms - prev_ts_ms) / 1000.0;
+        if !dt.is_finite() || dt <= 0.0 {
+            return None;
+        }
+        // Angular velocity from quaternion derivative (rad/s), matching gyro-like fields.
+        let delta = prev_q.inverse() * cur_q;
+        let rot = delta.scaled_axis();
+        Some([rot[0] / dt, rot[1] / dt, rot[2] / dt])
+    }
 
     let format = match filename.split('.').last().unwrap_or_default() {
         "csv"  => Format::Csv,
@@ -162,8 +173,13 @@ pub fn export_gyro_data(filename: &str, fields_json: &str, stab: &Arc<crate::Sta
         jsx.insert("orientations", Vec::<serde_json::Value>::new().into());
     }
 
-    let raw_imu = gyro.raw_imu(&file_metadata);
+    // Prefer untouched camera IMU for "original" export fields.
+    // If it's unavailable, fall back to transformed/processed IMU used by stabilization.
+    let camera_raw_imu = &file_metadata.raw_imu;
+    let processed_raw_imu = gyro.raw_imu(&file_metadata);
+    let raw_imu = if !camera_raw_imu.is_empty() { camera_raw_imu } else { processed_raw_imu };
 
+    let mut prev_quat_sample: Option<(f64, crate::Quat64)> = None;
     for (i, frame, ts, timestamp_ms) in timestamps {
         let raw_imu = raw_imu.get(i.unwrap_or(usize::MAX)).cloned().unwrap_or_default();
         let quat_org = match ts { TimestampType::Microseconds(ts) => *gyro.quaternions.get(&ts).unwrap(), TimestampType::Milliseconds(ts) => gyro.org_quat_at_timestamp(ts) };
@@ -171,9 +187,12 @@ pub fn export_gyro_data(filename: &str, fields_json: &str, stab: &Arc<crate::Sta
         let quatv = quat_org.as_vector();
         let val_oaccl = [get(raw_imu.accl, 0), get(raw_imu.accl, 1), get(raw_imu.accl, 2)];
         let val_oeulr = [quate.0 * RAD2DEG, quate.1 * RAD2DEG, quate.2 * RAD2DEG];
-        let val_ogyro = [get(raw_imu.gyro, 0), get(raw_imu.gyro, 1), get(raw_imu.gyro, 2)];
+        let val_ogyro = raw_imu.gyro.unwrap_or_else(|| {
+            derived_gyro_from_quats(prev_quat_sample, timestamp_ms, quat_org).unwrap_or([f64::NAN, f64::NAN, f64::NAN])
+        });
         let val_oquat = [quatv[3], quatv[0], quatv[1], quatv[2]];
         let mut val_ofd = 0.0_f32;
+        prev_quat_sample = Some((timestamp_ms, quat_org));
 
         if format == Format::Jsx && !(seulr && !oeulr) {
             jsx.get_mut("orientations").unwrap().as_array_mut().unwrap().push(serde_json::to_value([val_oeulr[0], -val_oeulr[2], val_oeulr[1]]).unwrap());
