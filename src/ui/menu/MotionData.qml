@@ -18,6 +18,7 @@ MenuItem {
     property alias hasRawGyro: integrator.hasRawGyro;
     property alias integrationMethod: integrator.currentIndex;
     property alias orientationIndicator: orientationIndicator;
+    property real manualLpfBlendValue: 0;
     property bool allMetadata: allMetadataCb.visible && allMetadataCb.checked;
     property string filename: "";
     property string detectedFormat: "";
@@ -90,6 +91,12 @@ MenuItem {
             } else {
                 lpfBlend.value = 0;
             }
+            manualLpfBlendValue = lpfBlend.value;
+            if (gyro.hasOwnProperty("lpf_adaptive_blend")) {
+                lpfAdaptiveBlend.checked = !!gyro.lpf_adaptive_blend;
+            } else {
+                lpfAdaptiveBlend.checked = false;
+            }
             if (gyro.hasOwnProperty("lpf3")) {
                 lpf3.value = +gyro.lpf3;
                 lpf3cb.checked = lpf3.value > 0;
@@ -138,6 +145,11 @@ MenuItem {
         lpf.value = v;
         lpfcb.checked = +v > 0;
     }
+    function updateAdaptiveBlendPreview(): void {
+        if (!lpfAdaptiveBlend.checked) return;
+        const blend = controller.imu_lpf_blend_at_timestamp(window.videoArea.timeline.getTimestampUs());
+        lpfBlend.value = Math.max(0, Math.min(1, blend));
+    }
 
     function msToTime(ms: real): string {
         if (ms >= 60*60*1000) {
@@ -181,6 +193,7 @@ MenuItem {
             controller.set_imu_lpf2(lpf2cb.checked? lpf2.value : 0);
             controller.set_imu_lpf2_strength(lpf2Strength.value);
             controller.set_imu_lpf_blend(lpfBlend.value);
+            controller.set_imu_lpf_adaptive_blend(lpfAdaptiveBlend.checked);
             controller.set_imu_lpf3(lpf3cb.checked? lpf3.value : 0);
             controller.set_imu_lpf3_strength(lpf3Strength.value);
             controller.set_imu_notch_q(notchQ.value);
@@ -353,6 +366,12 @@ MenuItem {
             }
         }
     }
+    Timer {
+        interval: 80;
+        running: root.visible && lpfAdaptiveBlend.checked;
+        repeat: true;
+        onTriggered: updateAdaptiveBlendPreview();
+    }
     CheckBoxWithContent {
         id: lpf2cb;
         text: qsTr("Low pass filter 2");
@@ -397,6 +416,24 @@ MenuItem {
         }
     }
     Label {
+        text: qsTr("Adaptive Blend");
+        position: Label.LeftPosition;
+        CheckBox {
+            id: lpfAdaptiveBlend;
+            checked: false;
+            onCheckedChanged: {
+                if (checked) {
+                    manualLpfBlendValue = lpfBlend.value;
+                    updateAdaptiveBlendPreview();
+                } else {
+                    lpfBlend.value = manualLpfBlendValue;
+                }
+                controller.set_imu_lpf_adaptive_blend(checked);
+                Qt.callLater(controller.recompute_gyro);
+            }
+        }
+    }
+    Label {
         text: qsTr("LPF blend");
         position: Label.LeftPosition;
         SliderWithField {
@@ -411,7 +448,11 @@ MenuItem {
             width: parent.width;
             keyframe: "ImuLpfBlend";
             scaler: 100.0;
+            enabled: !lpfAdaptiveBlend.checked;
+            opacity: enabled ? 1.0 : 0.45;
             onValueChanged: {
+                if (lpfAdaptiveBlend.checked) return;
+                manualLpfBlendValue = value;
                 controller.set_imu_lpf_blend(value);
                 Qt.callLater(controller.recompute_gyro);
             }

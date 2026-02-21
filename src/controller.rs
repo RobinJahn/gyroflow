@@ -90,6 +90,7 @@ pub struct Controller {
     remove_offset: qt_method!(fn(&self, timestamp_us: i64)),
     clear_offsets: qt_method!(fn(&self)),
     offset_at_video_timestamp: qt_method!(fn(&self, timestamp_us: i64) -> f64),
+    imu_lpf_blend_at_timestamp: qt_method!(fn(&self, timestamp_us: i64) -> f64),
     offsets_model: qt_property!(RefCell<SimpleListModel<OffsetItem>>; NOTIFY offsets_updated),
     offsets_updated: qt_signal!(),
 
@@ -106,6 +107,7 @@ pub struct Controller {
     set_imu_lpf2: qt_method!(fn(&self, lpf: f64)),
     set_imu_lpf2_strength: qt_method!(fn(&self, strength: f64)),
     set_imu_lpf_blend: qt_method!(fn(&self, blend: f64)),
+    set_imu_lpf_adaptive_blend: qt_method!(fn(&self, enabled: bool)),
     set_imu_lpf3: qt_method!(fn(&self, lpf: f64)),
     set_imu_lpf3_strength: qt_method!(fn(&self, strength: f64)),
     set_imu_notch_freq: qt_method!(fn(&self, freq: f64)),
@@ -1476,6 +1478,7 @@ impl Controller {
     wrap_simple_method!(set_imu_lpf2, v: f64; recompute; chart_data_changed);
     wrap_simple_method!(set_imu_lpf2_strength, v: f64; recompute; chart_data_changed);
     wrap_simple_method!(set_imu_lpf_blend, v: f64; recompute; chart_data_changed);
+    wrap_simple_method!(set_imu_lpf_adaptive_blend, v: bool; recompute; chart_data_changed);
     wrap_simple_method!(set_imu_lpf3, v: f64; recompute; chart_data_changed);
     wrap_simple_method!(set_imu_lpf3_strength, v: f64; recompute; chart_data_changed);
     wrap_simple_method!(set_imu_notch_freq, v: f64; recompute; chart_data_changed);
@@ -1510,6 +1513,10 @@ impl Controller {
 
     fn offset_at_video_timestamp(&self, timestamp_us: i64) -> f64 {
         self.stabilizer.offset_at_video_timestamp(timestamp_us)
+    }
+    fn imu_lpf_blend_at_timestamp(&self, timestamp_us: i64) -> f64 {
+        let gyro = self.stabilizer.gyro.read();
+        gyro.adaptive_lpf_blend_at_video_timestamp(timestamp_us as f64 / 1000.0)
     }
     fn quats_at_timestamp(&self, timestamp_us: i64) -> QVariantList {
         let gyro = self.stabilizer.gyro.read();

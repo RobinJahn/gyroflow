@@ -976,6 +976,9 @@ impl StabilizationManager {
     pub fn set_imu_lpf_blend(&self, blend: f64) {
         self.gyro.write().imu_transforms.imu_lpf_blend = blend.clamp(0.0, 1.0);
     }
+    pub fn set_imu_lpf_adaptive_blend(&self, enabled: bool) {
+        self.gyro.write().imu_transforms.imu_lpf_adaptive_blend = enabled;
+    }
     pub fn set_imu_lpf3(&self, lpf: f64) {
         self.gyro.write().imu_transforms.imu_lpf3 = lpf;
     }
@@ -1257,6 +1260,11 @@ impl StabilizationManager {
                 "lpf2":               gyro.imu_transforms.imu_lpf2,
                 "lpf2_strength":      gyro.imu_transforms.imu_lpf2_strength,
                 "lpf_blend":          gyro.imu_transforms.imu_lpf_blend,
+                "lpf_adaptive_blend": gyro.imu_transforms.imu_lpf_adaptive_blend,
+                "lpf_adaptive_theta0": gyro.imu_transforms.imu_lpf_adaptive_theta0,
+                "lpf_adaptive_theta1": gyro.imu_transforms.imu_lpf_adaptive_theta1,
+                "lpf_adaptive_attack_ms": gyro.imu_transforms.imu_lpf_adaptive_attack_ms,
+                "lpf_adaptive_release_ms": gyro.imu_transforms.imu_lpf_adaptive_release_ms,
                 "lpf3":               gyro.imu_transforms.imu_lpf3,
                 "lpf3_strength":      gyro.imu_transforms.imu_lpf3_strength,
                 "notch_freq":         gyro.imu_transforms.imu_notch_freq,
@@ -1540,6 +1548,11 @@ impl StabilizationManager {
                 if let Some(v) = obj.get("lpf2").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf2 = v; }
                 if let Some(v) = obj.get("lpf2_strength").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf2_strength = v.clamp(0.0, 12.0); }
                 if let Some(v) = obj.get("lpf_blend").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf_blend = v.clamp(0.0, 1.0); }
+                if let Some(v) = obj.get("lpf_adaptive_blend").and_then(|x| x.as_bool()) { gyro.imu_transforms.imu_lpf_adaptive_blend = v; }
+                if let Some(v) = obj.get("lpf_adaptive_theta0").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf_adaptive_theta0 = v.max(0.0); }
+                if let Some(v) = obj.get("lpf_adaptive_theta1").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf_adaptive_theta1 = v.max(0.0); }
+                if let Some(v) = obj.get("lpf_adaptive_attack_ms").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf_adaptive_attack_ms = v.max(1.0); }
+                if let Some(v) = obj.get("lpf_adaptive_release_ms").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf_adaptive_release_ms = v.max(1.0); }
                 if let Some(v) = obj.get("lpf3").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf3 = v; }
                 if let Some(v) = obj.get("lpf3_strength").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf3_strength = v.clamp(0.0, 12.0); }
                 if let Some(v) = obj.get("notch_freq").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_notch_freq = v; }

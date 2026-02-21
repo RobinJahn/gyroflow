@@ -27,7 +27,7 @@ Modal {
         "Motion data|gyro_source": {
             "Low pass filter 1":  ["lpf", "lpf_strength"],
             "Low pass filter 2":  ["lpf2", "lpf2_strength"],
-            "Low pass filter blend": ["lpf_blend"],
+            "Low pass filter blend": ["lpf_blend", "lpf_adaptive_blend", "lpf_adaptive_theta0", "lpf_adaptive_theta1", "lpf_adaptive_attack_ms", "lpf_adaptive_release_ms"],
             "Low pass filter 3 (post)": ["lpf3", "lpf3_strength"],
             "Notch filter":       ["notch_freq", "notch_q", "notch_strength"],
             "Median filter":      ["mf", "mf_strength"],

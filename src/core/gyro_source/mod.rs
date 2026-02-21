@@ -54,6 +54,8 @@ pub struct GyroSource {
 
     pub quaternions: TimeQuat,
     pub smoothed_quaternions: TimeQuat,
+    #[serde(default)]
+    pub adaptive_lpf_blend: BTreeMap<i64, f64>, // key is timestamp_us, value is blend 0..1
 
     pub use_gravity_vectors: bool,
     pub horizon_lock_integration_method: i32,
@@ -112,6 +114,31 @@ impl GyroSource {
             .and_then(|k| k.value_at_gyro_timestamp(&KeyframeType::ImuLpfBlend, timestamp_ms))
             .unwrap_or(default_blend)
             .clamp(0.0, 1.0)
+    }
+    fn adaptive_lpf_blend(
+        q_lp1: Quat64,
+        q_lp2: Quat64,
+        prev_blend: f64,
+        dt_s: f64,
+        theta0: f64,
+        theta1: f64,
+        attack_s: f64,
+        release_s: f64,
+    ) -> f64 {
+        let dq = q_lp2.inverse() * q_lp1;
+        let w_abs = dq.quaternion().w.abs().clamp(0.0, 1.0);
+        let theta = 2.0 * w_abs.acos();
+
+        let denom = (theta1 - theta0).max(1e-9);
+        let raw_blend = ((theta - theta0) / denom).clamp(0.0, 1.0);
+
+        let tau = if raw_blend > prev_blend { attack_s } else { release_s }.max(1e-6);
+        let alpha = if dt_s.is_finite() && dt_s > 0.0 {
+            (1.0 - (-dt_s / tau).exp()).clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+        (prev_blend + (raw_blend - prev_blend) * alpha).clamp(0.0, 1.0)
     }
     fn notch_q(q: f64) -> f64 {
         if q > 0.0 { q } else { biquad::Q_BUTTERWORTH_F64 }
@@ -527,6 +554,7 @@ impl GyroSource {
     pub fn clear(&mut self) {
         self.quaternions.clear();
         self.smoothed_quaternions.clear();
+        self.adaptive_lpf_blend.clear();
         self.raw_imu.clear();
         self.imu_transforms.imu_rotation = None;
         self.imu_transforms.acc_rotation = None;
@@ -535,6 +563,11 @@ impl GyroSource {
         self.imu_transforms.imu_lpf2 = 0.0;
         self.imu_transforms.imu_lpf2_strength = 1.0;
         self.imu_transforms.imu_lpf_blend = 0.0;
+        self.imu_transforms.imu_lpf_adaptive_blend = false;
+        self.imu_transforms.imu_lpf_adaptive_theta0 = 0.5 * DEG2RAD;
+        self.imu_transforms.imu_lpf_adaptive_theta1 = 2.5 * DEG2RAD;
+        self.imu_transforms.imu_lpf_adaptive_attack_ms = 30.0;
+        self.imu_transforms.imu_lpf_adaptive_release_ms = 220.0;
         self.imu_transforms.imu_lpf3 = 0.0;
         self.imu_transforms.imu_lpf3_strength = 1.0;
         self.imu_transforms.imu_notch_freq = 0.0;
@@ -597,6 +630,7 @@ impl GyroSource {
         }
     }
     pub fn integrate(&mut self, keyframes: Option<&KeyframeManager>) {
+        self.adaptive_lpf_blend.clear();
         let file_metadata = self.file_metadata.read();
         match self.integration_method {
             0 => {
@@ -628,23 +662,43 @@ impl GyroSource {
                             log::error!("Filter error {:?}", e);
                         }
 
+                        let adaptive_enabled = self.imu_transforms.imu_lpf_adaptive_blend;
                         let blend_is_keyframed = keyframes.is_some_and(|k| k.is_keyframed(&KeyframeType::ImuLpfBlend));
                         let blend = self.imu_transforms.imu_lpf_blend.clamp(0.0, 1.0);
 
-                        if !blend_is_keyframed && blend <= 0.0 {
+                        if !adaptive_enabled && !blend_is_keyframed && blend <= 0.0 {
                             self.quaternions = lpf1_quats;
-                        } else if !blend_is_keyframed && blend >= 1.0 {
+                        } else if !adaptive_enabled && !blend_is_keyframed && blend >= 1.0 {
                             self.quaternions = lpf2_quats;
                         } else {
                             self.quaternions = lpf1_quats;
+                            let theta0 = self.imu_transforms.imu_lpf_adaptive_theta0.max(0.0);
+                            let theta1 = self.imu_transforms.imu_lpf_adaptive_theta1.max(theta0 + 1e-9);
+                            let attack_s = (self.imu_transforms.imu_lpf_adaptive_attack_ms.max(1.0)) / 1000.0;
+                            let release_s = (self.imu_transforms.imu_lpf_adaptive_release_ms.max(1.0)) / 1000.0;
+                            let mut adaptive_blend = 0.0;
+                            let mut prev_ts_us: Option<i64> = None;
+                            let mut adaptive_curve = Vec::with_capacity(self.quaternions.len());
+
                             for ((ts, out), (_, q2)) in self.quaternions.iter_mut().zip(lpf2_quats.iter()) {
-                                let blend = Self::lpf_blend_at_gyro_timestamp(keyframes, *ts as f64 / 1000.0, blend);
+                                let blend = if adaptive_enabled {
+                                    let dt_s = prev_ts_us.map(|p| (*ts - p) as f64 / 1_000_000.0).unwrap_or(0.0);
+                                    adaptive_blend = Self::adaptive_lpf_blend(*out, *q2, adaptive_blend, dt_s, theta0, theta1, attack_s, release_s);
+                                    prev_ts_us = Some(*ts);
+                                    adaptive_curve.push((*ts, adaptive_blend));
+                                    adaptive_blend
+                                } else {
+                                    Self::lpf_blend_at_gyro_timestamp(keyframes, *ts as f64 / 1000.0, blend)
+                                };
                                 if blend >= 1.0 {
                                     *out = *q2;
                                 } else if blend > 0.0 {
                                     let q1 = *out;
                                     *out = q1.slerp(q2, blend);
                                 }
+                            }
+                            if adaptive_enabled {
+                                self.adaptive_lpf_blend = adaptive_curve.into_iter().collect();
                             }
                         }
                     }
@@ -971,6 +1025,36 @@ impl GyroSource {
 
     pub fn      org_quat_at_timestamp(&self, timestamp_ms: f64) -> Quat64 { self.quat_at_timestamp(&self.quaternions,          timestamp_ms) }
     pub fn smoothed_quat_at_timestamp(&self, timestamp_ms: f64) -> Quat64 { self.quat_at_timestamp(&self.smoothed_quaternions, timestamp_ms) }
+    pub fn adaptive_lpf_blend_at_video_timestamp(&self, mut timestamp_ms: f64) -> f64 {
+        if !self.imu_transforms.imu_lpf_adaptive_blend {
+            return self.imu_transforms.imu_lpf_blend.clamp(0.0, 1.0);
+        }
+        if self.adaptive_lpf_blend.is_empty() || self.duration_ms <= 0.0 {
+            return 0.0;
+        }
+
+        timestamp_ms -= self.offset_at_video_timestamp(timestamp_ms);
+        if let Some(&first_ts) = self.adaptive_lpf_blend.keys().next() {
+            if let Some(&last_ts) = self.adaptive_lpf_blend.keys().next_back() {
+                let lookup_ts = ((timestamp_ms * 1000.0).round() as i64).min(last_ts).max(first_ts);
+                if let Some(v) = self.adaptive_lpf_blend.get(&lookup_ts) {
+                    return *v;
+                }
+                if let Some(v1) = self.adaptive_lpf_blend.range(..=lookup_ts).next_back() {
+                    if let Some(v2) = self.adaptive_lpf_blend.range(lookup_ts..).next() {
+                        let dt = (v2.0 - v1.0) as f64;
+                        if dt > 0.0 {
+                            let fract = (lookup_ts - v1.0) as f64 / dt;
+                            return v1.1 + (v2.1 - v1.1) * fract;
+                        }
+                        return *v1.1;
+                    }
+                    return *v1.1;
+                }
+            }
+        }
+        0.0
+    }
 
     pub fn offset_at_timestamp(offsets: &BTreeMap<i64, f64>, timestamp_ms: f64) -> f64 {
         match offsets.len() {
@@ -1017,6 +1101,11 @@ impl GyroSource {
         hasher.write_u64(self.imu_transforms.imu_lpf2.to_bits());
         hasher.write_u64(self.imu_transforms.imu_lpf2_strength.to_bits());
         hasher.write_u64(self.imu_transforms.imu_lpf_blend.to_bits());
+        hasher.write_u32(if self.imu_transforms.imu_lpf_adaptive_blend { 1 } else { 0 });
+        hasher.write_u64(self.imu_transforms.imu_lpf_adaptive_theta0.to_bits());
+        hasher.write_u64(self.imu_transforms.imu_lpf_adaptive_theta1.to_bits());
+        hasher.write_u64(self.imu_transforms.imu_lpf_adaptive_attack_ms.to_bits());
+        hasher.write_u64(self.imu_transforms.imu_lpf_adaptive_release_ms.to_bits());
         hasher.write_u64(self.imu_transforms.imu_lpf3.to_bits());
         hasher.write_u64(self.imu_transforms.imu_lpf3_strength.to_bits());
         hasher.write_u64(self.imu_transforms.imu_notch_freq.to_bits());

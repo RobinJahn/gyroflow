@@ -16,6 +16,11 @@ pub struct IMUTransforms {
     pub imu_lpf2: f64,
     pub imu_lpf2_strength: f64,
     pub imu_lpf_blend: f64,
+    pub imu_lpf_adaptive_blend: bool,
+    pub imu_lpf_adaptive_theta0: f64, // radians
+    pub imu_lpf_adaptive_theta1: f64, // radians
+    pub imu_lpf_adaptive_attack_ms: f64,
+    pub imu_lpf_adaptive_release_ms: f64,
     pub imu_lpf3: f64,
     pub imu_lpf3_strength: f64,
     pub imu_notch_freq: f64,
@@ -38,6 +43,13 @@ impl Default for IMUTransforms {
             imu_lpf2: 0.0,
             imu_lpf2_strength: 1.0,
             imu_lpf_blend: 0.0,
+            imu_lpf_adaptive_blend: false,
+            // Action-cam defaults: start blending at ~0.5 deg divergence, full LP2 at ~2.5 deg.
+            imu_lpf_adaptive_theta0: 0.5 * DEG2RAD,
+            imu_lpf_adaptive_theta1: 2.5 * DEG2RAD,
+            // Faster attack to catch spikes, slower release to reduce flicker.
+            imu_lpf_adaptive_attack_ms: 30.0,
+            imu_lpf_adaptive_release_ms: 220.0,
             imu_lpf3: 0.0,
             imu_lpf3_strength: 1.0,
             imu_notch_freq: 0.0,
