@@ -90,6 +90,18 @@ MenuItem {
             } else {
                 lpfBlend.value = 0;
             }
+            if (gyro.hasOwnProperty("lpf3")) {
+                lpf3.value = +gyro.lpf3;
+                lpf3cb.checked = lpf3.value > 0;
+            } else {
+                lpf3.value = 30;
+                lpf3cb.checked = false;
+            }
+            if (gyro.hasOwnProperty("lpf3_strength")) {
+                lpf3Strength.value = +gyro.lpf3_strength;
+            } else {
+                lpf3Strength.value = 1;
+            }
             if (gyro.hasOwnProperty("notch_freq")) {
                 notchFreq.value = +gyro.notch_freq;
                 notchcb.checked = notchFreq.value > 0;
@@ -169,6 +181,8 @@ MenuItem {
             controller.set_imu_lpf2(lpf2cb.checked? lpf2.value : 0);
             controller.set_imu_lpf2_strength(lpf2Strength.value);
             controller.set_imu_lpf_blend(lpfBlend.value);
+            controller.set_imu_lpf3(lpf3cb.checked? lpf3.value : 0);
+            controller.set_imu_lpf3_strength(lpf3Strength.value);
             controller.set_imu_notch_q(notchQ.value);
             controller.set_imu_notch_strength(notchStrength.value);
             controller.set_imu_notch_freq(notchcb.checked? notchFreq.value : 0);
@@ -400,6 +414,49 @@ MenuItem {
             onValueChanged: {
                 controller.set_imu_lpf_blend(value);
                 Qt.callLater(controller.recompute_gyro);
+            }
+        }
+    }
+    CheckBoxWithContent {
+        id: lpf3cb;
+        text: qsTr("Low pass filter 3 (post)");
+        onCheckedChanged: {
+            controller.set_imu_lpf3_strength(lpf3Strength.value);
+            controller.set_imu_lpf3(checked? lpf3.value : 0);
+            Qt.callLater(controller.recompute_gyro);
+        }
+
+        NumberField {
+            id: lpf3;
+            unit: qsTr("Hz");
+            precision: 2;
+            value: 30;
+            from: 0;
+            width: parent.width;
+            tooltip: qsTr("Applied after LPF1/LPF2 stage and blend");
+            onValueChanged: {
+                controller.set_imu_lpf3_strength(lpf3Strength.value);
+                controller.set_imu_lpf3(lpf3cb.checked? value : 0);
+                Qt.callLater(controller.recompute_gyro);
+            }
+        }
+        Label {
+            text: qsTr("Strength");
+            position: Label.LeftPosition;
+            NumberField {
+                id: lpf3Strength;
+                unit: "x";
+                precision: 0;
+                value: 1;
+                from: 0;
+                to: 12;
+                width: parent.width;
+                tooltip: qsTr("Number of filter passes; higher values mean stronger attenuation");
+                onValueChanged: {
+                    controller.set_imu_lpf3_strength(value);
+                    controller.set_imu_lpf3(lpf3cb.checked? lpf3.value : 0);
+                    Qt.callLater(controller.recompute_gyro);
+                }
             }
         }
     }

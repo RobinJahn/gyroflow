@@ -4,16 +4,20 @@ Scripts:
 - `analysis/lpf_compare/compare_lpf_exports.py`
 - `analysis/lpf_compare/motion_csv_viz.py`
 
-Generates an interactive HTML report comparing two Gyroflow motion CSV exports.
+Generates an interactive HTML report comparing three Gyroflow motion CSV exports:
+- Original
+- LP350
+- LP2
 
 ## Run
 
 ```bash
 python3 analysis/lpf_compare/compare_lpf_exports.py \
-  export_LP2.csv export_LP350.csv \
+  export.csv export_LP350.csv export_LP2.csv \
   --outdir analysis/lpf_compare/output \
   --focus 03:16 \
-  --focus-window 24
+  --focus-window 24 \
+  --vib-max-hz 300
 ```
 
 ## Output
@@ -25,6 +29,9 @@ Notes:
 - Time axis uses `MM:SS` labels.
 - Full timeline is downsampled for responsiveness.
 - Zoom panel keeps full data around the focus timestamp.
+- Includes vibration spectrum plots (`dB` vs `Hz`):
+  - Whole data range.
+  - Local time-window spectrum driven by an interactive slider.
 
 ## Single-file interactive view
 

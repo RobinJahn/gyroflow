@@ -157,6 +157,8 @@ impl std::fmt::Debug for ComputeParams {
          .field("gyro.imu_lpf2", &gyro.imu_transforms.imu_lpf2)
          .field("gyro.imu_lpf2_strength", &gyro.imu_transforms.imu_lpf2_strength)
          .field("gyro.imu_lpf_blend", &gyro.imu_transforms.imu_lpf_blend)
+         .field("gyro.imu_lpf3", &gyro.imu_transforms.imu_lpf3)
+         .field("gyro.imu_lpf3_strength", &gyro.imu_transforms.imu_lpf3_strength)
          .field("gyro.imu_notch_freq", &gyro.imu_transforms.imu_notch_freq)
          .field("gyro.imu_notch_q", &gyro.imu_transforms.imu_notch_q)
          .field("gyro.imu_notch_strength", &gyro.imu_transforms.imu_notch_strength)

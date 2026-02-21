@@ -28,6 +28,7 @@ Modal {
             "Low pass filter 1":  ["lpf", "lpf_strength"],
             "Low pass filter 2":  ["lpf2", "lpf2_strength"],
             "Low pass filter blend": ["lpf_blend"],
+            "Low pass filter 3 (post)": ["lpf3", "lpf3_strength"],
             "Notch filter":       ["notch_freq", "notch_q", "notch_strength"],
             "Median filter":      ["mf", "mf_strength"],
             "Rotation":           ["rotation", "acc_rotation"],
