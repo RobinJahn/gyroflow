@@ -21,6 +21,10 @@ All analysis scripts and motion exports are organized under `analysis/python/`.
   - `quaternion_diagnostics.py`
   - `output/`
 
+- `analysis/python/quat_glitch_diagnostics/`
+  - `quat_diagnostics.py`
+  - `output/`
+
 ## Usage
 
 Run from repo root.
@@ -41,6 +45,12 @@ python3 analysis/python/motion_csv_viz/motion_csv_viz.py
 
 ```bash
 python3 analysis/python/quaternion_diagnostics/quaternion_diagnostics.py
+```
+
+### 4) Quaternion glitch diagnostics (raw-stream checks)
+
+```bash
+python3 analysis/python/quat_glitch_diagnostics/quat_diagnostics.py analysis/python/data/export.csv --center 196 --half-window 20
 ```
 
 Each script defaults to data files in `analysis/python/data/` and writes outputs to its own `output/` subfolder.
