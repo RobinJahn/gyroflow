@@ -16,8 +16,7 @@ python3 analysis/lpf_compare/compare_lpf_exports.py \
   export.csv export_LP350.csv export_LP2.csv \
   --outdir analysis/lpf_compare/output \
   --focus 03:16 \
-  --focus-window 24 \
-  --vib-max-hz 300
+  --focus-window 24
 ```
 
 ## Output
@@ -32,6 +31,7 @@ Notes:
 - Includes vibration spectrum plots (`dB` vs `Hz`):
   - Whole data range.
   - Local time-window spectrum driven by an interactive slider.
+  - Frequency range defaults to near Nyquist (auto), so it can show beyond 300 Hz.
 
 ## Single-file interactive view
 

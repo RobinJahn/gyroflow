@@ -222,6 +222,22 @@ def resample_uniform(t_sec: List[float], y: List[float], fs_target: float, max_p
     return t_uniform, y_uniform, fs_target
 
 
+def build_uniform_grid(start: float, end: float, fs: float, max_points: int = 250000) -> Tuple[List[float], float]:
+    dur = end - start
+    if fs <= 0 or dur <= 0:
+        return [], 0.0
+
+    n = int(dur * fs) + 1
+    if max_points > 0 and n > max_points:
+        n = max_points
+        fs = (n - 1) / dur if dur > 0 else fs
+    if n < 8:
+        return [], 0.0
+
+    dt_s = 1.0 / fs
+    return [start + i * dt_s for i in range(n)], fs
+
+
 def next_pow2(v: int) -> int:
     n = 1
     while n < v:
@@ -566,7 +582,7 @@ def main() -> None:
     p.add_argument("--focus", default="03:16", help="Interesting timestamp in MM:SS")
     p.add_argument("--focus-window", type=float, default=24.0, help="Zoom window width in seconds")
     p.add_argument("--max-full-points", type=int, default=120000, help="Maximum number of points in full timeline")
-    p.add_argument("--vib-max-hz", type=float, default=250.0, help="Maximum frequency shown in vibration plots")
+    p.add_argument("--vib-max-hz", type=float, default=0.0, help="Maximum frequency shown in vibration plots; <=0 means auto (near Nyquist)")
     p.add_argument("--vib-nfft", type=int, default=2048, help="FFT size (power of 2 recommended)")
     p.add_argument("--vib-window-sec", type=float, default=4.0, help="Local spectrum window size in seconds")
     p.add_argument("--vib-step-sec", type=float, default=1.0, help="Step between local spectrum frames in seconds")
@@ -652,34 +668,44 @@ def main() -> None:
     vib_freq_ref: List[float] = []
     vib_times_ref: List[float] = []
 
-    for idx_ds, (name, _, data) in enumerate(datasets):
-        t_sec = t_norm_by_name[name]
-        y = data["org_gyro_mag"]
-        fs_est = estimate_sample_rate(t_sec)
-        if fs_est <= 0:
-            raise SystemExit(f"Could not estimate sample rate for {name}")
+    fs_candidates = [estimate_sample_rate(t_norm_by_name[name]) for name, _, _ in datasets]
+    if any(fs <= 0 for fs in fs_candidates):
+        raise SystemExit("Could not estimate sample rate for all datasets")
+    fs_common = min(fs_candidates)
 
-        tu, yu, fsu = resample_uniform(t_sec, y, fs_est, max_points=250000)
-        if not yu:
-            raise SystemExit(f"Could not build uniform signal for {name}")
+    t_start = max(min_finite(t_norm_by_name[name]) for name, _, _ in datasets)
+    t_end = min(max_finite(t_norm_by_name[name]) for name, _, _ in datasets)
+    t_uniform, fs_common = build_uniform_grid(t_start, t_end, fs_common, max_points=0)
+    if not t_uniform:
+        raise SystemExit("Could not build common uniform timeline for vibration analysis")
 
-        n_fft = next_pow2(max(256, args.vib_nfft))
-        if n_fft > len(yu):
-            n_fft = next_pow2(max(256, len(yu) // 2))
-        n_fft = max(256, n_fft)
+    y_uniform_by_name: Dict[str, List[float]] = {}
+    for name, _, data in datasets:
+        y_interp = interp_to_time(t_norm_by_name[name], data["org_gyro_mag"], t_uniform)
+        y_uniform_by_name[name] = sanitize_signal(y_interp)
 
-        f_all, db_all = welch_db(yu, fsu, n_fft)
+    n_fft = next_pow2(max(256, args.vib_nfft))
+    while n_fft > len(t_uniform) and n_fft > 256:
+        n_fft >>= 1
+    n_fft = max(256, n_fft)
+
+    nyquist = fs_common * 0.5
+    vib_max_hz = (nyquist * 0.98) if args.vib_max_hz <= 0 else min(args.vib_max_hz, nyquist * 0.98)
+
+    for idx_ds, (name, _, _data) in enumerate(datasets):
+        yu = y_uniform_by_name[name]
+
+        f_all, db_all = welch_db(yu, fs_common, n_fft)
         if not f_all:
             raise SystemExit(f"Could not compute overall spectrum for {name}")
-        f_all, db_all = clamp_freq(f_all, db_all, args.vib_max_hz)
+        f_all, db_all = clamp_freq(f_all, db_all, vib_max_hz)
 
-        frame_times, frame_db = short_time_spectra_db(yu, fsu, n_fft, args.vib_window_sec, args.vib_step_sec)
+        frame_times, frame_db = short_time_spectra_db(yu, fs_common, n_fft, args.vib_window_sec, args.vib_step_sec)
         if not frame_times or not frame_db:
             raise SystemExit(f"Could not compute local spectra for {name}")
-        freq_bins = [(i * fsu) / n_fft for i in range((n_fft // 2) + 1)]
-        freq_bins, frame_db = clamp_freq_frames(freq_bins, frame_db, args.vib_max_hz)
+        freq_bins = [(i * fs_common) / n_fft for i in range((n_fft // 2) + 1)]
+        freq_bins, frame_db = clamp_freq_frames(freq_bins, frame_db, vib_max_hz)
 
-        # Align local frame count/time to first dataset by truncation to common prefix.
         if idx_ds == 0:
             vib_freq_ref = f_all
             vib_times_ref = frame_times
@@ -690,10 +716,8 @@ def main() -> None:
             n_freq = min(len(vib_freq_ref), len(f_all), len(freq_bins))
             vib_times_ref = vib_times_ref[:n_time]
             vib_freq_ref = vib_freq_ref[:n_freq]
-
             vib_overall = {k: v[:n_freq] for k, v in vib_overall.items()}
             vib_local = {k: [row[:n_freq] for row in vals[:n_time]] for k, vals in vib_local.items()}
-
             vib_overall[name] = db_all[:n_freq]
             vib_local[name] = [row[:n_freq] for row in frame_db[:n_time]]
 
@@ -715,7 +739,7 @@ def main() -> None:
     )
 
     print(f"Wrote: {out_html}")
-    print(f"Vibration frequency range: 0..{args.vib_max_hz:.1f} Hz")
+    print(f"Vibration frequency range: 0..{vib_max_hz:.1f} Hz (Nyquist: {nyquist:.1f} Hz)")
     print(f"Local vibration frame count: {len(vib_times_ref)}")
 
 
