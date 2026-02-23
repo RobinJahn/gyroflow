@@ -140,6 +140,113 @@ impl GyroSource {
         };
         (prev_blend + (raw_blend - prev_blend) * alpha).clamp(0.0, 1.0)
     }
+    // Stage B jerk smoother on incremental rotations.
+    // Assumes approximately constant sampling interval for finite differences.
+    fn jerk_smooth_increments(values: &[[f64; 3]], lambda: f64) -> Vec<[f64; 3]> {
+        let n = values.len();
+        if n < 4 || lambda <= 0.0 {
+            return values.to_vec();
+        }
+
+        fn apply_system(x: &[f64], lambda: f64) -> Vec<f64> {
+            let n = x.len();
+            let mut y = x.to_vec(); // I * x
+            if n < 4 || lambda <= 0.0 {
+                return y;
+            }
+            for k in 0..(n - 3) {
+                let z = -x[k] + 3.0 * x[k + 1] - 3.0 * x[k + 2] + x[k + 3];
+                y[k]     += lambda * (-z);
+                y[k + 1] += lambda * ( 3.0 * z);
+                y[k + 2] += lambda * (-3.0 * z);
+                y[k + 3] += lambda * ( z);
+            }
+            y
+        }
+        fn dot(a: &[f64], b: &[f64]) -> f64 {
+            a.iter().zip(b.iter()).map(|(x, y)| x * y).sum()
+        }
+        fn cg_solve(b: &[f64], lambda: f64) -> Vec<f64> {
+            let n = b.len();
+            let mut x = b.to_vec();
+            let mut r = {
+                let ax = apply_system(&x, lambda);
+                b.iter().zip(ax.iter()).map(|(bi, ai)| bi - ai).collect::<Vec<f64>>()
+            };
+            let mut p = r.clone();
+            let mut rr = dot(&r, &r);
+            if rr <= 1e-20 {
+                return x;
+            }
+            let bnorm = dot(b, b).sqrt().max(1e-12);
+            for _ in 0..128 {
+                let ap = apply_system(&p, lambda);
+                let denom = dot(&p, &ap).max(1e-20);
+                let alpha = rr / denom;
+                for i in 0..n {
+                    x[i] += alpha * p[i];
+                    r[i] -= alpha * ap[i];
+                }
+                let rr_new = dot(&r, &r);
+                if (rr_new.sqrt() / bnorm) < 1e-6 {
+                    break;
+                }
+                let beta = rr_new / rr.max(1e-20);
+                for i in 0..n {
+                    p[i] = r[i] + beta * p[i];
+                }
+                rr = rr_new;
+            }
+            x
+        }
+
+        let mut out = vec![[0.0; 3]; n];
+        for axis in 0..3 {
+            let b = values.iter().map(|v| v[axis]).collect::<Vec<f64>>();
+            let x = cg_solve(&b, lambda);
+            for (i, xi) in x.iter().enumerate() {
+                out[i][axis] = *xi;
+            }
+        }
+        out
+    }
+    fn apply_jerk_smoother_post_stage(&mut self) {
+        if !self.imu_transforms.imu_jerk_smoother_post {
+            return;
+        }
+        let lambda = self.imu_transforms.imu_jerk_amount.max(0.0);
+        if self.quaternions.len() < 2 || lambda <= 0.0 {
+            return;
+        }
+
+        let timestamps = self.quaternions.keys().copied().collect::<Vec<i64>>();
+        let q_a = self.quaternions.values().copied().collect::<Vec<Quat64>>();
+        if q_a.len() < 2 {
+            return;
+        }
+
+        let mut v_a = Vec::with_capacity(q_a.len() - 1);
+        for i in 1..q_a.len() {
+            let d = q_a[i - 1].inverse() * q_a[i];
+            let v = d.scaled_axis();
+            v_a.push([v[0], v[1], v[2]]);
+        }
+
+        let v_b = Self::jerk_smooth_increments(&v_a, lambda);
+        let mut q_b = Vec::with_capacity(q_a.len());
+        q_b.push(q_a[0]);
+        for i in 1..q_a.len() {
+            let dv = Vector3::new(v_b[i - 1][0], v_b[i - 1][1], v_b[i - 1][2]);
+            let d_b = Quat64::from_scaled_axis(dv);
+            let q_next = Quat64::new_normalize(*(q_b[i - 1] * d_b).quaternion());
+            q_b.push(q_next);
+        }
+
+        self.quaternions.clear();
+        for (ts, q) in timestamps.into_iter().zip(q_b.into_iter()) {
+            self.quaternions.insert(ts, q);
+        }
+    }
     fn notch_q(q: f64) -> f64 {
         if q > 0.0 { q } else { biquad::Q_BUTTERWORTH_F64 }
     }
@@ -570,6 +677,8 @@ impl GyroSource {
         self.imu_transforms.imu_lpf_adaptive_release_ms = 220.0;
         self.imu_transforms.imu_lpf3 = 0.0;
         self.imu_transforms.imu_lpf3_strength = 1.0;
+        self.imu_transforms.imu_jerk_smoother_post = false;
+        self.imu_transforms.imu_jerk_amount = 5.0;
         self.imu_transforms.imu_notch_freq = 0.0;
         self.imu_transforms.imu_notch_q = biquad::Q_BUTTERWORTH_F64;
         self.imu_transforms.imu_notch_strength = 1.0;
@@ -729,6 +838,8 @@ impl GyroSource {
             6 => self.quaternions = MadgwickIntegrator       ::integrate(self.raw_imu(&file_metadata), self.duration_ms),
             _ => log::error!("Unknown integrator")
         }
+        drop(file_metadata);
+        self.apply_jerk_smoother_post_stage();
     }
 
     pub fn recompute_smoothness(&self, alg: &dyn SmoothingAlgorithm, horizon_lock: super::smoothing::horizon::HorizonLock, compute_params: &crate::ComputeParams) -> (TimeQuat, (f64, f64, f64)) {
@@ -1108,6 +1219,8 @@ impl GyroSource {
         hasher.write_u64(self.imu_transforms.imu_lpf_adaptive_release_ms.to_bits());
         hasher.write_u64(self.imu_transforms.imu_lpf3.to_bits());
         hasher.write_u64(self.imu_transforms.imu_lpf3_strength.to_bits());
+        hasher.write_u32(if self.imu_transforms.imu_jerk_smoother_post { 1 } else { 0 });
+        hasher.write_u64(self.imu_transforms.imu_jerk_amount.to_bits());
         hasher.write_u64(self.imu_transforms.imu_notch_freq.to_bits());
         hasher.write_u64(self.imu_transforms.imu_notch_q.to_bits());
         hasher.write_u64(self.imu_transforms.imu_notch_strength.to_bits());

@@ -110,6 +110,8 @@ pub struct Controller {
     set_imu_lpf_adaptive_blend: qt_method!(fn(&self, enabled: bool)),
     set_imu_lpf3: qt_method!(fn(&self, lpf: f64)),
     set_imu_lpf3_strength: qt_method!(fn(&self, strength: f64)),
+    set_imu_jerk_smoother_post: qt_method!(fn(&self, enabled: bool)),
+    set_imu_jerk_amount: qt_method!(fn(&self, amount: f64)),
     set_imu_notch_freq: qt_method!(fn(&self, freq: f64)),
     set_imu_notch_q: qt_method!(fn(&self, q: f64)),
     set_imu_notch_strength: qt_method!(fn(&self, strength: f64)),
@@ -1481,6 +1483,8 @@ impl Controller {
     wrap_simple_method!(set_imu_lpf_adaptive_blend, v: bool; recompute; chart_data_changed);
     wrap_simple_method!(set_imu_lpf3, v: f64; recompute; chart_data_changed);
     wrap_simple_method!(set_imu_lpf3_strength, v: f64; recompute; chart_data_changed);
+    wrap_simple_method!(set_imu_jerk_smoother_post, v: bool; recompute; chart_data_changed);
+    wrap_simple_method!(set_imu_jerk_amount, v: f64; recompute; chart_data_changed);
     wrap_simple_method!(set_imu_notch_freq, v: f64; recompute; chart_data_changed);
     wrap_simple_method!(set_imu_notch_q, v: f64; recompute; chart_data_changed);
     wrap_simple_method!(set_imu_notch_strength, v: f64; recompute; chart_data_changed);

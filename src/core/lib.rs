@@ -985,6 +985,12 @@ impl StabilizationManager {
     pub fn set_imu_lpf3_strength(&self, strength: f64) {
         self.gyro.write().imu_transforms.imu_lpf3_strength = strength.clamp(0.0, 12.0);
     }
+    pub fn set_imu_jerk_smoother_post(&self, enabled: bool) {
+        self.gyro.write().imu_transforms.imu_jerk_smoother_post = enabled;
+    }
+    pub fn set_imu_jerk_amount(&self, amount: f64) {
+        self.gyro.write().imu_transforms.imu_jerk_amount = amount.max(0.0);
+    }
     pub fn set_imu_notch_freq(&self, freq: f64) {
         self.gyro.write().imu_transforms.imu_notch_freq = freq;
     }
@@ -1304,6 +1310,9 @@ impl StabilizationManager {
         }
 
         if let Some(serde_json::Value::Object(obj)) = obj.get_mut("gyro_source") {
+            obj.insert("jerk_smoother_post".into(), serde_json::Value::Bool(gyro.imu_transforms.imu_jerk_smoother_post));
+            obj.insert("jerk_amount".into(), serde_json::json!(gyro.imu_transforms.imu_jerk_amount));
+
             let file_metadata = gyro.file_metadata.read();
             if typ == GyroflowProjectType::Simple {
                 if let Ok(val) = serde_json::to_value(file_metadata.thin()) {
@@ -1555,6 +1564,8 @@ impl StabilizationManager {
                 if let Some(v) = obj.get("lpf_adaptive_release_ms").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf_adaptive_release_ms = v.max(1.0); }
                 if let Some(v) = obj.get("lpf3").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf3 = v; }
                 if let Some(v) = obj.get("lpf3_strength").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf3_strength = v.clamp(0.0, 12.0); }
+                if let Some(v) = obj.get("jerk_smoother_post").and_then(|x| x.as_bool()) { gyro.imu_transforms.imu_jerk_smoother_post = v; }
+                if let Some(v) = obj.get("jerk_amount").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_jerk_amount = v.max(0.0); }
                 if let Some(v) = obj.get("notch_freq").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_notch_freq = v; }
                 if let Some(v) = obj.get("notch_q").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_notch_q = v; }
                 if let Some(v) = obj.get("notch_strength").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_notch_strength = v.clamp(0.0, 12.0); }

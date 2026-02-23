@@ -109,6 +109,16 @@ MenuItem {
             } else {
                 lpf3Strength.value = 1;
             }
+            if (gyro.hasOwnProperty("jerk_smoother_post")) {
+                jerkPostCb.checked = !!gyro.jerk_smoother_post;
+            } else {
+                jerkPostCb.checked = false;
+            }
+            if (gyro.hasOwnProperty("jerk_amount")) {
+                jerkAmount.value = +gyro.jerk_amount;
+            } else {
+                jerkAmount.value = 5;
+            }
             if (gyro.hasOwnProperty("notch_freq")) {
                 notchFreq.value = +gyro.notch_freq;
                 notchcb.checked = notchFreq.value > 0;
@@ -196,6 +206,8 @@ MenuItem {
             controller.set_imu_lpf_adaptive_blend(lpfAdaptiveBlend.checked);
             controller.set_imu_lpf3(lpf3cb.checked? lpf3.value : 0);
             controller.set_imu_lpf3_strength(lpf3Strength.value);
+            controller.set_imu_jerk_smoother_post(jerkPostCb.checked);
+            controller.set_imu_jerk_amount(jerkAmount.value);
             controller.set_imu_notch_q(notchQ.value);
             controller.set_imu_notch_strength(notchStrength.value);
             controller.set_imu_notch_freq(notchcb.checked? notchFreq.value : 0);
@@ -496,6 +508,34 @@ MenuItem {
                 onValueChanged: {
                     controller.set_imu_lpf3_strength(value);
                     controller.set_imu_lpf3(lpf3cb.checked? lpf3.value : 0);
+                    Qt.callLater(controller.recompute_gyro);
+                }
+            }
+        }
+    }
+    CheckBoxWithContent {
+        id: jerkPostCb;
+        text: qsTr("Jerk smoother (post)");
+        onCheckedChanged: {
+            controller.set_imu_jerk_smoother_post(checked);
+            controller.set_imu_jerk_amount(jerkAmount.value);
+            Qt.callLater(controller.recompute_gyro);
+        }
+        Label {
+            text: qsTr("Jerk amount");
+            position: Label.LeftPosition;
+            SliderWithField {
+                id: jerkAmount;
+                unit: "\u03bb";
+                precision: 2;
+                value: 5;
+                defaultValue: 5;
+                from: 0;
+                to: 200;
+                width: parent.width;
+                onValueChanged: {
+                    controller.set_imu_jerk_amount(value);
+                    controller.set_imu_jerk_smoother_post(jerkPostCb.checked);
                     Qt.callLater(controller.recompute_gyro);
                 }
             }
