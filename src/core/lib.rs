@@ -979,12 +979,6 @@ impl StabilizationManager {
     pub fn set_imu_lpf_adaptive_blend(&self, enabled: bool) {
         self.gyro.write().imu_transforms.imu_lpf_adaptive_blend = enabled;
     }
-    pub fn set_imu_lpf3(&self, lpf: f64) {
-        self.gyro.write().imu_transforms.imu_lpf3 = lpf;
-    }
-    pub fn set_imu_lpf3_strength(&self, strength: f64) {
-        self.gyro.write().imu_transforms.imu_lpf3_strength = strength.clamp(0.0, 12.0);
-    }
     pub fn set_imu_jerk_smoother_post(&self, enabled: bool) {
         self.gyro.write().imu_transforms.imu_jerk_smoother_post = enabled;
     }
@@ -1271,8 +1265,6 @@ impl StabilizationManager {
                 "lpf_adaptive_theta1": gyro.imu_transforms.imu_lpf_adaptive_theta1,
                 "lpf_adaptive_attack_ms": gyro.imu_transforms.imu_lpf_adaptive_attack_ms,
                 "lpf_adaptive_release_ms": gyro.imu_transforms.imu_lpf_adaptive_release_ms,
-                "lpf3":               gyro.imu_transforms.imu_lpf3,
-                "lpf3_strength":      gyro.imu_transforms.imu_lpf3_strength,
                 "notch_freq":         gyro.imu_transforms.imu_notch_freq,
                 "notch_q":            gyro.imu_transforms.imu_notch_q,
                 "notch_strength":     gyro.imu_transforms.imu_notch_strength,
@@ -1562,8 +1554,6 @@ impl StabilizationManager {
                 if let Some(v) = obj.get("lpf_adaptive_theta1").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf_adaptive_theta1 = v.max(0.0); }
                 if let Some(v) = obj.get("lpf_adaptive_attack_ms").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf_adaptive_attack_ms = v.max(1.0); }
                 if let Some(v) = obj.get("lpf_adaptive_release_ms").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf_adaptive_release_ms = v.max(1.0); }
-                if let Some(v) = obj.get("lpf3").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf3 = v; }
-                if let Some(v) = obj.get("lpf3_strength").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_lpf3_strength = v.clamp(0.0, 12.0); }
                 if let Some(v) = obj.get("jerk_smoother_post").and_then(|x| x.as_bool()) { gyro.imu_transforms.imu_jerk_smoother_post = v; }
                 if let Some(v) = obj.get("jerk_amount").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_jerk_amount = v.max(0.0); }
                 if let Some(v) = obj.get("notch_freq").and_then(|x| x.as_f64()) { gyro.imu_transforms.imu_notch_freq = v; }

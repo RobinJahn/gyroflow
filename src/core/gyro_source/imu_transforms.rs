@@ -21,8 +21,6 @@ pub struct IMUTransforms {
     pub imu_lpf_adaptive_theta1: f64, // radians
     pub imu_lpf_adaptive_attack_ms: f64,
     pub imu_lpf_adaptive_release_ms: f64,
-    pub imu_lpf3: f64,
-    pub imu_lpf3_strength: f64,
     pub imu_jerk_smoother_post: bool,
     pub imu_jerk_amount: f64,
     pub imu_notch_freq: f64,
@@ -52,8 +50,6 @@ impl Default for IMUTransforms {
             // Faster attack to catch spikes, slower release to reduce flicker.
             imu_lpf_adaptive_attack_ms: 30.0,
             imu_lpf_adaptive_release_ms: 220.0,
-            imu_lpf3: 0.0,
-            imu_lpf3_strength: 1.0,
             imu_jerk_smoother_post: false,
             imu_jerk_amount: 5.0,
             imu_notch_freq: 0.0,
@@ -91,7 +87,6 @@ impl IMUTransforms {
             || self.gyro_bias.is_some_and(|x| x[0].abs() > 0.0 || x[1].abs() > 0.0 || x[2].abs() > 0.0)
             || self.imu_lpf > 0.0
             || self.imu_lpf2 > 0.0
-            || self.imu_lpf3 > 0.0
             || self.imu_notch_freq > 0.0
             || self.imu_mf > 0
     }
